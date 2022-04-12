@@ -58,3 +58,59 @@ int main(int arc, char** arv)
 
     return 0;
 }
+
+// int main() {
+//     cv::VideoCapture inputVideo;
+//     inputVideo.open(0);
+//     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+//     while (inputVideo.grab())
+//     {
+//         cv::Mat image, imageCopy;
+//         inputVideo.retrieve(image);
+//         image.copyTo(imageCopy);
+
+//         std::vector<int> ids;
+//         std::vector<std::vector<cv::Point2f>> corners;
+//         cv::aruco::detectMarkers(image, dictionary, corners, ids);
+
+//         if(ids.size() > 0)
+//             cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
+
+//         cv::imshow("out", imageCopy);
+//         cv::waitKey(0);
+//         return 0;
+//     }
+    
+// }
+
+// int main() {
+//     cv::VideoCapture inputVideo;
+//     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+//     if(!inputVideo.isOpened())
+//     {
+//         std::cout << "Error Opening video stream or file" << std::endl;
+//         return -1;
+//     }
+
+//     while (1)
+//     {
+//         cv::Mat frame, frame_cp;
+//         inputVideo >> frame;
+//         frame.copyTo(frame_cp);
+//         if(frame.empty())
+//             break;
+
+//         std::vector<int> ids;
+//         std::vector<std::vector<cv::Point2f>> corners;
+//         cv::aruco::detectMarkers(frame, dictionary, corners, ids);
+
+//         if(ids.size() > 0)
+//             cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
+
+//         cv::imshow("out", frame_cp);
+//         cv::waitKey(0);
+//         return 0;
+//     }
+
+    
+// }
