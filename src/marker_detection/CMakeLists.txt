@@ -12,6 +12,9 @@ find_package(catkin REQUIRED COMPONENTS
   image_transport
   roscpp
   std_msgs
+  tf
+  tf2
+  geometry_msgs
 )
 
 ## System dependencies are found with CMake's conventions

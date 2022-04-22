@@ -13,8 +13,44 @@
 #include<string>
 #include<fstream>
 #include<boost/algorithm/string.hpp>
-
+#include<geometry_msgs/PoseArray.h>
+#include<geometry_msgs/Pose.h>
 #include<jsoncpp/json/json.h>
+#include<tf2/LinearMath/Quaternion.h>
+#include<tf2_ros/transform_broadcaster.h>
+#include<tf2/LinearMath/Vector3.h>
+#include<tf2/LinearMath/Transform.h>
+#include<tf2_msgs/TFMessage.h>
+
+tf2::Vector3 cv_vector3d_to_tf_vector3(const cv::Vec3d &vec)
+{
+    return {vec[0], vec[1], vec[2]};
+}
+
+tf2::Quaternion cv_vector3d_to_tf_quaternion(const cv::Vec3d &rvec)
+{
+    cv::Mat rotation_mat;
+    auto ax = rvec[0], ay = rvec[1], az = rvec[2];
+    auto angle = sqrt(ax*ax + ay*ay + az*az);
+    auto cosa = cos(angle * 0.5);
+    auto sina = sin(angle * 0.5);
+    auto qx = ax * sina / angle;
+    auto qy = ay * sina / angle;
+    auto qz = az * sina / angle;
+    auto qw = cosa;
+    tf2::Quaternion q;
+    q.setValue(qx, qy, qz, qw);
+    return q;
+}
+
+tf2::Transform create_transform(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
+{
+    tf2::Transform transform;
+    transform.setOrigin(cv_vector3d_to_tf_vector3(tvec));
+    transform.setRotation(cv_vector3d_to_tf_quaternion(rvec));
+    return transform;
+}
+
 
 int main(int argc, char** argv) {
     cv::VideoCapture inputVideo(0);
@@ -27,22 +63,29 @@ int main(int argc, char** argv) {
     
     ros::init(argc, argv, "image_publisher");
     ros::NodeHandle nh;
+
     image_transport::ImageTransport it(nh);
     image_transport::Publisher pub = it.advertise("camera/image", 1);
     std::string filename = "/home/cona/marker/src/marker_detection/src/cam_int";
+    //ros::Publisher pos_pub = nh.advertise<geometry_msgs::PoseArray>("/markerPose", 10);
+    ros::Publisher pos__ = nh.advertise<geometry_msgs::Pose>("/posem", 10);
+    ros::Publisher tf_list_pub_ = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 10);
     std::ifstream readFile;
     std::vector<std::string> yaml;
     std::vector<int> rows;
     std::vector<int> cols;
     std::vector<std::string> data;
+    std::string marker_tf_prefix;
 
     std::vector<int> ids;
-        std::vector<std::vector<cv::Point2f>> corners;
-        std::vector<cv::Vec3d> rvecs, tvecs;
+    std::vector<std::vector<cv::Point2f>> corners;
+    std::vector<cv::Vec3d> rvecs, tvecs;
 
     cv::Mat frame, frame_cp;
     cv::Mat camMatrix, distCoeffs;
     std::string parser;
+
+    geometry_msgs::PoseArray posearray;
 
     cv::FileStorage f_s(filename, cv::FileStorage::READ);
 
@@ -59,6 +102,10 @@ int main(int argc, char** argv) {
     
     while (1)
     {
+
+        posearray.header.stamp = ros::Time::now();
+        posearray.header.frame_id = "marker";
+        
         inputVideo >> frame;
         frame.copyTo(frame_cp);
         if(frame.empty())
@@ -83,13 +130,66 @@ int main(int argc, char** argv) {
         // std::cout << rvecs.size() << std::endl;
         for (int i = 0; i < rvecs.size(); i ++)
         {
-            std::cout << "rvecs[" << i << "] : "<< rvecs[i] << std::endl;
+            std::cout << "rvecs[" << i << "] : "<< rvecs[i][0] << std::endl;
         }
+        geometry_msgs::Pose p;
+
+        tf2_ros::TransformBroadcaster br;
+        tf2_msgs::TFMessage tf_msg_list_;
 
         for (int i = 0; i < tvecs.size(); i ++)
         {
             std::cout << "tvecs[" << i << "] : "<< tvecs[i] << std::endl;
+
+            
+            tf2::Quaternion marker_q;
+            marker_q.setRPY(rvecs[i][0], rvecs[i][1], rvecs[i][2]);
+            marker_q = marker_q.normalize();
+
+            p.position.x = tvecs[i][0];
+            p.position.y = tvecs[i][1];
+            p.position.z = tvecs[i][2];
+
+            p.orientation.x = marker_q.getX();
+            p.orientation.y = marker_q.getY();
+            p.orientation.z = marker_q.getZ();
+            p.orientation.w = marker_q.getW();
+
+            auto translation_vec = tvecs[i];
+            auto rotation_vec = rvecs[i];
+            auto transform = create_transform(translation_vec, rotation_vec);
+
+            geometry_msgs::TransformStamped tf_msg;
+            tf_msg.header.stamp = ros::Time::now();
+            tf_msg.header.frame_id = "marker";
+
+            std::stringstream ss;
+            ss << marker_tf_prefix << ids[i];
+            tf_msg.child_frame_id = ss.str();
+
+            tf_msg.transform.translation.x = transform.getOrigin().getX();
+            tf_msg.transform.translation.y = transform.getOrigin().getY();
+            tf_msg.transform.translation.z = transform.getOrigin().getZ();
+
+            tf_msg.transform.rotation.x = transform.getRotation().getX();
+            tf_msg.transform.rotation.y = transform.getRotation().getY();
+            tf_msg.transform.rotation.z = transform.getRotation().getZ();
+            tf_msg.transform.rotation.w = transform.getRotation().getW();
+            tf_msg_list_.transforms.push_back(tf_msg);
+            br.sendTransform(tf_msg);
+
+            //posearray.poses.push_back(p);
         }
+        tf_list_pub_.publish(tf_msg_list_);
+
+
+        pos__.publish(p);
+     
+
+
+
+
+
 
         for (int i = 0; i < corners.size(); i++)
         {
@@ -98,61 +198,12 @@ int main(int argc, char** argv) {
 
         for (int i=0; i<ids.size(); i++)
         {
-            
             cv::drawFrameAxes(frame_cp, camMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1);
-            
         }
-
-        cv::Mat flip_frame_cp;
-        cv::flip(frame_cp, flip_frame_cp, 1);
-        cv::imshow("flip", flip_frame_cp);
+        
         cv::imshow("out", frame_cp);
         if(cv::waitKey(1)==27)
             break;
     }
     return 0;
 }
-
-// class ImageConverter
-// {
-//     ros::NodeHandle nh_;
-//     image_transport::ImageTransport it_;
-//     image_transport::Subscriber image_sub_;
-//     image_transport::Publisher image_pub_;
-
-//     public:
-//         ImageConverter()
-//             :it_(nh_)
-//         {
-//             image_sub_ = it_.subscribe("/camera/image_raw", 1, &ImageConverter::imageCb, this);
-//             image_pub_ = it_.advertise("/image_converter/output_video", 1);
-//         }
-        
-//         void imageCb(const sensor_msgs::ImageConstPtr& msg)
-//         {
-//             cv_bridge::CvImagePtr cv_ptr;
-//             try {
-//                 cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-//             }
-//             catch (cv_bridge::Exception& e) {
-//                 ROS_ERROR("cv_bridge exception:%s", e.what());
-//                 return;
-//             }
-
-//             if(cv_ptr->image.rows > 60 && cv_ptr -> image.cols > 60)
-//                 cv::circle(cv_ptr -> image, cv::Point(50, 50), 10, CV_RGB(255,0, 0));
-
-//                 cv::imshow("d", cv_ptr->image);
-//                 cv::waitKey(0);
-
-//                 image_pub_.publish(cv_ptr->toImageMsg());
-//         }
-// };
-
-// int main(int argc, char** argv)
-// {
-//     ros::init(argc, argv, "image_converter");
-//     ImageConverter ic;
-//     ros::spin();
-//     return 0;
-// }
