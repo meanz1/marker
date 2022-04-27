@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="marker_detection" type="marker_detection" name="marker_detection" />
+</launch>

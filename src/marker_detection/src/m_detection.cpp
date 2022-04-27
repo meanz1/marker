@@ -68,8 +68,8 @@ int main(int argc, char** argv) {
     image_transport::Publisher pub = it.advertise("camera/image", 1);
     std::string filename = "/home/cona/marker/src/marker_detection/src/cam_int";
     //ros::Publisher pos_pub = nh.advertise<geometry_msgs::PoseArray>("/markerPose", 10);
-    ros::Publisher pos__ = nh.advertise<geometry_msgs::Pose>("/posem", 10);
-    ros::Publisher tf_list_pub_ = nh.advertise<tf2_msgs::TFMessage>("/tf_list", 10);
+    ros::Publisher pos__ = nh.advertise<geometry_msgs::Pose>("/pose", 10);
+    ros::Publisher tf_list_pub_ = nh.advertise<tf2_msgs::TFMessage>("/tf", 10);
     std::ifstream readFile;
     std::vector<std::string> yaml;
     std::vector<int> rows;
@@ -102,7 +102,6 @@ int main(int argc, char** argv) {
     
     while (1)
     {
-
         posearray.header.stamp = ros::Time::now();
         posearray.header.frame_id = "marker";
         
@@ -126,7 +125,7 @@ int main(int argc, char** argv) {
         if(ids.size() > 0)
             cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
 
-        cv::aruco::estimatePoseSingleMarkers(corners, 0.037, camMatrix, distCoeffs, rvecs, tvecs);
+        cv::aruco::estimatePoseSingleMarkers(corners, 0.085, camMatrix, distCoeffs, rvecs, tvecs);
         // std::cout << rvecs.size() << std::endl;
         for (int i = 0; i < rvecs.size(); i ++)
         {
@@ -140,8 +139,6 @@ int main(int argc, char** argv) {
         for (int i = 0; i < tvecs.size(); i ++)
         {
             std::cout << "tvecs[" << i << "] : "<< tvecs[i] << std::endl;
-
-            
             tf2::Quaternion marker_q;
             marker_q.setRPY(rvecs[i][0], rvecs[i][1], rvecs[i][2]);
             marker_q = marker_q.normalize();
@@ -181,16 +178,8 @@ int main(int argc, char** argv) {
             //posearray.poses.push_back(p);
         }
         tf_list_pub_.publish(tf_msg_list_);
-
-
         pos__.publish(p);
-     
-
-
-
-
-
-
+    
         for (int i = 0; i < corners.size(); i++)
         {
             std::cout << "corners[" << i << "] : "<< corners[i] << std::endl;
