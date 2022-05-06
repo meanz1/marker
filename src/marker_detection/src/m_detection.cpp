@@ -51,6 +51,11 @@ tf2::Transform create_transform(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
     return transform;
 }
 
+tf2::Transform create_transform_inverse(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
+{
+    tf2::Transform transform;
+
+}
 
 int main(int argc, char** argv) {
     cv::VideoCapture inputVideo(0);
@@ -80,6 +85,7 @@ int main(int argc, char** argv) {
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
     std::vector<cv::Vec3d> rvecs, tvecs;
+    cv::Mat rt;
 
     cv::Mat frame, frame_cp;
     cv::Mat camMatrix, distCoeffs;
@@ -126,12 +132,24 @@ int main(int argc, char** argv) {
             cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
 
         cv::aruco::estimatePoseSingleMarkers(corners, 0.085, camMatrix, distCoeffs, rvecs, tvecs);
+        
         // std::cout << rvecs.size() << std::endl;
         for (int i = 0; i < rvecs.size(); i ++)
         {
-            std::cout << "rvecs[" << i << "] : "<< rvecs[i][0] << std::endl;
+            std::cout << "rvecs[" << i << "] : "<< rvecs[i] << std::endl;
+
+            cv::Mat R;
+            cv::Mat R_t;
+            cv::Mat R_i;
+            cv::Rodrigues(rvecs, R);
+            // R_t = R.t() * R;
+            R_i = R.inv() * tvecs[i];             // cv::Mat test = -R.t() * tvecs;
+            // std::cout<< R_t <<std::endl;
+            std::cout << R_i << std::endl;
         }
         geometry_msgs::Pose p;
+
+        
 
         tf2_ros::TransformBroadcaster br;
         tf2_msgs::TFMessage tf_msg_list_;
@@ -139,18 +157,18 @@ int main(int argc, char** argv) {
         for (int i = 0; i < tvecs.size(); i ++)
         {
             std::cout << "tvecs[" << i << "] : "<< tvecs[i] << std::endl;
-            tf2::Quaternion marker_q;
-            marker_q.setRPY(rvecs[i][0], rvecs[i][1], rvecs[i][2]);
-            marker_q = marker_q.normalize();
+            // tf2::Quaternion marker_q;
+            // marker_q.setRPY(rvecs[i][0], rvecs[i][1], rvecs[i][2]);
+            // marker_q = marker_q.normalize();
 
-            p.position.x = tvecs[i][0];
-            p.position.y = tvecs[i][1];
-            p.position.z = tvecs[i][2];
+            // p.position.x = tvecs[i][0];
+            // p.position.y = tvecs[i][1];
+            // p.position.z = tvecs[i][2];
 
-            p.orientation.x = marker_q.getX();
-            p.orientation.y = marker_q.getY();
-            p.orientation.z = marker_q.getZ();
-            p.orientation.w = marker_q.getW();
+            // p.orientation.x = marker_q.getX();
+            // p.orientation.y = marker_q.getY();
+            // p.orientation.z = marker_q.getZ();
+            // p.orientation.w = marker_q.getW();
 
             auto translation_vec = tvecs[i];
             auto rotation_vec = rvecs[i];
