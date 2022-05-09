@@ -22,15 +22,15 @@
 #include<tf2/LinearMath/Transform.h>
 #include<tf2_msgs/TFMessage.h>
 
-tf2::Vector3 cv_vector3d_to_tf_vector3(const cv::Vec3d &vec)
+tf2::Vector3 cv_vector3d_to_tf_vector3(const cv::Mat &vec)
 {
-    return {vec[0], vec[1], vec[2]};
+    return {vec.at<double>(0, 0), vec.at<double>(1, 0), vec.at<double>(2, 0)};
 }
 
-tf2::Quaternion cv_vector3d_to_tf_quaternion(const cv::Vec3d &rvec)
+tf2::Quaternion cv_vector3d_to_tf_quaternion(const cv::Mat &rvec)
 {
     cv::Mat rotation_mat;
-    auto ax = rvec[0], ay = rvec[1], az = rvec[2];
+    auto ax = rvec.at<double>(0, 0), ay = rvec.at<double>(1, 0), az = rvec.at<double>(2, 0);
     auto angle = sqrt(ax*ax + ay*ay + az*az);
     auto cosa = cos(angle * 0.5);
     auto sina = sin(angle * 0.5);
@@ -43,7 +43,7 @@ tf2::Quaternion cv_vector3d_to_tf_quaternion(const cv::Vec3d &rvec)
     return q;
 }
 
-tf2::Transform create_transform(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
+tf2::Transform create_transform(const cv::Mat &tvec, const cv::Mat &rvec)
 {
     tf2::Transform transform;
     transform.setOrigin(cv_vector3d_to_tf_vector3(tvec));
@@ -80,17 +80,22 @@ int main(int argc, char** argv) {
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
     std::vector<cv::Vec3d> rvecs, tvecs;
+    cv::Mat element_of_tvecs;
 
-    std::vector<cv::Vec3d> rvecs_inv, tvecs_inv;
+    std::vector<cv::Vec3d> vecs_inv;
     cv::Mat rt;
-
+    // std::vector<cv::Vec3d> rvecs_inv;
+    cv::Mat rvecs_inv;
     cv::Mat frame, frame_cp;
     cv::Mat camMatrix, distCoeffs;
     std::string parser;
-
+    tf2::Transform transform;
     cv::Mat R;
     
-    cv::Mat R_inv;
+    tf2_ros::TransformBroadcaster br;
+    tf2_msgs::TFMessage tf_msg_list_;
+
+    // cv::Mat R_inv;
 
     geometry_msgs::PoseArray posearray;
 
@@ -134,41 +139,25 @@ int main(int argc, char** argv) {
 
         cv::aruco::estimatePoseSingleMarkers(corners, 0.085, camMatrix, distCoeffs, rvecs, tvecs);
         
-        // std::cout << rvecs.size() << std::endl;
-        for (int i = 0; i < rvecs.size(); i ++)
+        std::cout << rvecs.size() << std::endl;
+        std::cout << tvecs.size() << std::endl;
+
+        for (int i = 0; i < rvecs.size(); i++)
         {
-            std::cout << "rvecs[" << i << "] : "<< rvecs[i] << std::endl;
+            std::cout << tvecs[i] << std::endl;
 
-            
-            cv::Mat R_t;
-            cv::Mat R_i;
-            cv::Rodrigues(rvecs, R);
-
+            cv::Mat R_inv, T_inv;
+            cv::Rodrigues(rvecs[i], R);
             R_inv = R.inv();
-
             cv::Rodrigues(R_inv, rvecs_inv);
-            
-            // R_t = R.t() * R;
-            // R_i = R.inv() * tvecs[i];             
-            // cv::Mat test = -R.t() * tvecs;
-            // std::cout<< R_t <<std::endl;
-            // std::cout << R_i << std::endl;
-        }
-        geometry_msgs::Pose p;
+            T_inv = -R * tvecs[i];
 
-        tf2_ros::TransformBroadcaster br;
-        tf2_msgs::TFMessage tf_msg_list_;
+            std::cout << "R_inv size : " << R_inv.size() << std::endl;
+            std::cout << "T_inv size : " << T_inv.size() << std::endl;
+            std::cout << "Rvecs_inv size : " << rvecs_inv.size() << std::endl;
 
-        for (int i = 0; i < tvecs.size(); i ++)
-        {
-            std::vector<cv::Vec3d> T_inv;
-            std::cout << "tvecs[" << i << "] : "<< tvecs[i] << std::endl;
-            T_inv[i] = -R*tvecs[i]; 
-
-            auto translation_vec = tvecs[i];
-            auto rotation_vec = rvecs[i];
             auto transform = create_transform(T_inv, rvecs_inv);
-
+            
             geometry_msgs::TransformStamped tf_msg;
             tf_msg.header.stamp = ros::Time::now();
             tf_msg.header.frame_id = "camera";
@@ -187,11 +176,9 @@ int main(int argc, char** argv) {
             tf_msg.transform.rotation.w = transform.getRotation().getW();
             tf_msg_list_.transforms.push_back(tf_msg);
             br.sendTransform(tf_msg);
-
-            //posearray.poses.push_back(p);
+        
         }
         tf_list_pub_.publish(tf_msg_list_);
-        pos__.publish(p);
     
         for (int i = 0; i < corners.size(); i++)
         {
