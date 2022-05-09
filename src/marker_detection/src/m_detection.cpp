@@ -15,7 +15,6 @@
 #include<boost/algorithm/string.hpp>
 #include<geometry_msgs/PoseArray.h>
 #include<geometry_msgs/Pose.h>
-#include<jsoncpp/json/json.h>
 #include<tf2/LinearMath/Quaternion.h>
 #include<tf2_ros/transform_broadcaster.h>
 #include<tf2/LinearMath/Vector3.h>
