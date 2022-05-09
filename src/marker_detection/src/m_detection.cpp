@@ -51,7 +51,6 @@ tf2::Transform create_transform(const cv::Mat &tvec, const cv::Mat &rvec)
     return transform;
 }
 
-
 int main(int argc, char** argv) {
     cv::VideoCapture inputVideo(0);
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
@@ -67,37 +66,24 @@ int main(int argc, char** argv) {
     image_transport::ImageTransport it(nh);
     image_transport::Publisher pub = it.advertise("camera/image", 1);
     std::string filename = "/home/cona/marker/src/marker_detection/src/cam_int";
-    //ros::Publisher pos_pub = nh.advertise<geometry_msgs::PoseArray>("/markerPose", 10);
-    ros::Publisher pos__ = nh.advertise<geometry_msgs::Pose>("/pose", 10);
+    
     ros::Publisher tf_list_pub_ = nh.advertise<tf2_msgs::TFMessage>("/tf", 10);
-    std::ifstream readFile;
-    std::vector<std::string> yaml;
-    std::vector<int> rows;
-    std::vector<int> cols;
-    std::vector<std::string> data;
+    
     std::string marker_tf_prefix;
 
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
     std::vector<cv::Vec3d> rvecs, tvecs;
-    cv::Mat element_of_tvecs;
-
-    std::vector<cv::Vec3d> vecs_inv;
-    cv::Mat rt;
-    // std::vector<cv::Vec3d> rvecs_inv;
+    
     cv::Mat rvecs_inv;
     cv::Mat frame, frame_cp;
     cv::Mat camMatrix, distCoeffs;
-    std::string parser;
+
     tf2::Transform transform;
     cv::Mat R;
     
     tf2_ros::TransformBroadcaster br;
     tf2_msgs::TFMessage tf_msg_list_;
-
-    // cv::Mat R_inv;
-
-    geometry_msgs::PoseArray posearray;
 
     cv::FileStorage f_s(filename, cv::FileStorage::READ);
 
@@ -113,10 +99,7 @@ int main(int argc, char** argv) {
     
     
     while (1)
-    {
-        posearray.header.stamp = ros::Time::now();
-        posearray.header.frame_id = "marker";
-        
+    {   
         inputVideo >> frame;
         frame.copyTo(frame_cp);
         if(frame.empty())
