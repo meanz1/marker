@@ -51,11 +51,6 @@ tf2::Transform create_transform(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
     return transform;
 }
 
-tf2::Transform create_transform_inverse(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
-{
-    tf2::Transform transform;
-
-}
 
 int main(int argc, char** argv) {
     cv::VideoCapture inputVideo(0);
@@ -85,11 +80,17 @@ int main(int argc, char** argv) {
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
     std::vector<cv::Vec3d> rvecs, tvecs;
+
+    std::vector<cv::Vec3d> rvecs_inv, tvecs_inv;
     cv::Mat rt;
 
     cv::Mat frame, frame_cp;
     cv::Mat camMatrix, distCoeffs;
     std::string parser;
+
+    cv::Mat R;
+    
+    cv::Mat R_inv;
 
     geometry_msgs::PoseArray posearray;
 
@@ -138,45 +139,39 @@ int main(int argc, char** argv) {
         {
             std::cout << "rvecs[" << i << "] : "<< rvecs[i] << std::endl;
 
-            cv::Mat R;
+            
             cv::Mat R_t;
             cv::Mat R_i;
             cv::Rodrigues(rvecs, R);
+
+            R_inv = R.inv();
+
+            cv::Rodrigues(R_inv, rvecs_inv);
+            
             // R_t = R.t() * R;
-            R_i = R.inv() * tvecs[i];             // cv::Mat test = -R.t() * tvecs;
+            // R_i = R.inv() * tvecs[i];             
+            // cv::Mat test = -R.t() * tvecs;
             // std::cout<< R_t <<std::endl;
-            std::cout << R_i << std::endl;
+            // std::cout << R_i << std::endl;
         }
         geometry_msgs::Pose p;
-
-        
 
         tf2_ros::TransformBroadcaster br;
         tf2_msgs::TFMessage tf_msg_list_;
 
         for (int i = 0; i < tvecs.size(); i ++)
         {
+            std::vector<cv::Vec3d> T_inv;
             std::cout << "tvecs[" << i << "] : "<< tvecs[i] << std::endl;
-            // tf2::Quaternion marker_q;
-            // marker_q.setRPY(rvecs[i][0], rvecs[i][1], rvecs[i][2]);
-            // marker_q = marker_q.normalize();
-
-            // p.position.x = tvecs[i][0];
-            // p.position.y = tvecs[i][1];
-            // p.position.z = tvecs[i][2];
-
-            // p.orientation.x = marker_q.getX();
-            // p.orientation.y = marker_q.getY();
-            // p.orientation.z = marker_q.getZ();
-            // p.orientation.w = marker_q.getW();
+            T_inv[i] = -R*tvecs[i]; 
 
             auto translation_vec = tvecs[i];
             auto rotation_vec = rvecs[i];
-            auto transform = create_transform(translation_vec, rotation_vec);
+            auto transform = create_transform(T_inv, rvecs_inv);
 
             geometry_msgs::TransformStamped tf_msg;
             tf_msg.header.stamp = ros::Time::now();
-            tf_msg.header.frame_id = "marker";
+            tf_msg.header.frame_id = "camera";
 
             std::stringstream ss;
             ss << marker_tf_prefix << ids[i];
