@@ -53,11 +53,14 @@ tf2::Transform create_transform(const cv::Mat &tvec, const cv::Mat &rvec)
 int main(int argc, char** argv) {
     cv::VideoCapture inputVideo(0);
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.037, 0.003, dictionary);
     if(!inputVideo.isOpened())
     {
         std::cout << "Error Opening video stream or file" << std::endl;
         return -1;
     }
+    inputVideo.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+    inputVideo.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
     
     ros::init(argc, argv, "image_publisher");
     ros::NodeHandle nh;
@@ -73,6 +76,7 @@ int main(int argc, char** argv) {
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
     std::vector<cv::Vec3d> rvecs, tvecs;
+    cv::Vec3d rvec_board, tvec_board;
     
     cv::Mat rvecs_inv;
     cv::Mat frame, frame_cp;
@@ -97,12 +101,14 @@ int main(int argc, char** argv) {
     f_s.release();
     
     
-    while (1)
+    while (ros::ok())
     {   
         inputVideo >> frame;
         frame.copyTo(frame_cp);
         if(frame.empty())
             break;
+
+            std::cout << frame.cols <<" " << frame.rows << std::endl;
     
         cv::Mat image = cv::imread(argv[0], cv::IMREAD_COLOR);
         sensor_msgs::ImagePtr msg = cv_bridge::CvImage(std_msgs::Header(), "bgr8", image).toImageMsg();
@@ -117,61 +123,125 @@ int main(int argc, char** argv) {
         cv::aruco::detectMarkers(frame, dictionary, corners, ids);
 
         if(ids.size() > 0)
-            cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
-
-        cv::aruco::estimatePoseSingleMarkers(corners, 0.085, camMatrix, distCoeffs, rvecs, tvecs);
-        
-        std::cout << rvecs.size() << std::endl;
-        std::cout << tvecs.size() << std::endl;
-
-        for (int i = 0; i < rvecs.size(); i++)
         {
-            std::cout << tvecs[i] << std::endl;
-
-            cv::Mat R_inv, T_inv;
-            cv::Rodrigues(rvecs[i], R);
-            R_inv = R.inv();
-            cv::Rodrigues(R_inv, rvecs_inv);
-            T_inv = -R * tvecs[i];
-
-            std::cout << "R_inv size : " << R_inv.size() << std::endl;
-            std::cout << "T_inv size : " << T_inv.size() << std::endl;
-            std::cout << "Rvecs_inv size : " << rvecs_inv.size() << std::endl;
-
-            auto transform = create_transform(T_inv, rvecs_inv);
+            // cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
             
-            geometry_msgs::TransformStamped tf_msg;
-            tf_msg.header.stamp = ros::Time::now();
-            tf_msg.header.frame_id = "camera";
+            int valid = estimatePoseBoard(corners, ids, board, camMatrix, distCoeffs, rvec_board, tvec_board);
 
-            std::stringstream ss;
-            ss << marker_tf_prefix << ids[i];
-            tf_msg.child_frame_id = ss.str();
-
-            tf_msg.transform.translation.x = transform.getOrigin().getX();
-            tf_msg.transform.translation.y = transform.getOrigin().getY();
-            tf_msg.transform.translation.z = transform.getOrigin().getZ();
-
-            tf_msg.transform.rotation.x = transform.getRotation().getX();
-            tf_msg.transform.rotation.y = transform.getRotation().getY();
-            tf_msg.transform.rotation.z = transform.getRotation().getZ();
-            tf_msg.transform.rotation.w = transform.getRotation().getW();
-            tf_msg_list_.transforms.push_back(tf_msg);
-            br.sendTransform(tf_msg);
-        
+            if (valid > 0)
+                cv::drawFrameAxes(frame_cp, camMatrix, distCoeffs, rvec_board, tvec_board, 0.1);
         }
+        cv::aruco::estimatePoseSingleMarkers(corners, 0.2, camMatrix, distCoeffs, rvecs, tvecs);
+        
+        // std::cout << rvec_board.size() << std::endl;
+        // std::cout << tvec_board << std::endl;
+
+        // ***********************************************************************
+        // ***********************************************************************
+
+        // estimate single pose case
+
+        // ***********************************************************************
+
+        // for (int i = 0; i < rvecs.size(); i++) 
+        // {
+        //     std::cout << tvecs[i] << std::endl;
+        //     std::cout << "!!!distance!!!" << std::sqrt(tvecs[i][0]*tvecs[i][0] + tvecs[i][1]*tvecs[i][1] + tvecs[i][2]*tvecs[i][2])<< std::endl;
+
+        //     cv::Mat R_inv, T_inv;
+        //     cv::Rodrigues(rvecs[i], R);
+        //     R_inv = R.inv();
+        //     cv::Rodrigues(R_inv, rvecs_inv);
+        //     T_inv = -R * tvecs[i];
+
+        //     std::cout << "R_inv size : " << R_inv.size() << std::endl;
+        //     std::cout << "T_inv size : " << T_inv.size() << std::endl;
+        //     std::cout << "Rvecs_inv size : " << rvecs_inv.size() << std::endl;
+
+        //     auto transform = create_transform(T_inv, rvecs_inv);
+            
+        //     geometry_msgs::TransformStamped tf_msg;
+        //     tf_msg.header.stamp = ros::Time::now();
+        //     tf_msg.header.frame_id = "camera";
+
+        //     std::stringstream ss;
+        //     ss << marker_tf_prefix << ids[i];
+        //     tf_msg.child_frame_id = ss.str();
+
+        //     tf_msg.transform.translation.x = transform.getOrigin().getX();
+        //     tf_msg.transform.translation.y = transform.getOrigin().getY();
+        //     tf_msg.transform.translation.z = transform.getOrigin().getZ();
+
+        //     tf_msg.transform.rotation.x = transform.getRotation().getX();
+        //     tf_msg.transform.rotation.y = transform.getRotation().getY();
+        //     tf_msg.transform.rotation.z = transform.getRotation().getZ();
+        //     tf_msg.transform.rotation.w = transform.getRotation().getW();
+        //     tf_msg_list_.transforms.push_back(tf_msg);
+        //     br.sendTransform(tf_msg);
+        
+        // }
+
+        // ***********************************************************************
+        // ***********************************************************************
+
+
+        // ***********************************************************************
+        // ***********************************************************************
+
+        // estimate marker board case
+
+        // ***********************************************************************
+
+        
+        cv::Mat R_inv, T_inv;
+        cv::Rodrigues(rvec_board, R);
+        R_inv = R.inv();
+        cv::Rodrigues(R_inv, rvecs_inv);
+        T_inv = -R * tvec_board;
+
+        std::cout << "R_inv size : " << R_inv.size() << std::endl;
+        std::cout << "T_inv size : " << T_inv.size() << std::endl;
+        std::cout << "Rvecs_inv size : " << rvecs_inv.size() << std::endl;
+        // std::cout << "T_Vec "
+        std::cout << "!!!distance!!!" << std::sqrt(tvec_board[0]*tvec_board[0] + tvec_board[1]*tvec_board[1] + tvec_board[2]*tvec_board[2])<< std::endl;
+        auto transform = create_transform(T_inv, rvecs_inv);
+            
+        geometry_msgs::TransformStamped tf_msg;
+        tf_msg.header.stamp = ros::Time::now();
+        tf_msg.header.frame_id = "camera";
+
+        std::stringstream ss;
+        ss << marker_tf_prefix << "mkboard";
+        tf_msg.child_frame_id = ss.str();
+
+        tf_msg.transform.translation.x = transform.getOrigin().getX();
+        tf_msg.transform.translation.y = transform.getOrigin().getY();
+        tf_msg.transform.translation.z = transform.getOrigin().getZ();
+
+        tf_msg.transform.rotation.x = transform.getRotation().getX();
+        tf_msg.transform.rotation.y = transform.getRotation().getY();
+        tf_msg.transform.rotation.z = transform.getRotation().getZ();
+        tf_msg.transform.rotation.w = transform.getRotation().getW();
+        tf_msg_list_.transforms.push_back(tf_msg);
+        br.sendTransform(tf_msg);
+        
+        // ***********************************************************************
+        // ***********************************************************************
+
         tf_list_pub_.publish(tf_msg_list_);
     
         for (int i = 0; i < corners.size(); i++)
         {
-            std::cout << "corners[" << i << "] : "<< corners[i] << std::endl;
+            // std::cout << "corners[" << i << "] : "<< corners[i] << std::endl;
         }
 
-        for (int i=0; i<ids.size(); i++)
-        {
-            cv::drawFrameAxes(frame_cp, camMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1);
-        }
-        
+        // for (int i=0; i<ids.size(); i++)
+        // {
+        //     cv::drawFrameAxes(frame_cp, camMatrix, distCoeffs, rvecs[i], tvecs[i], 0.1);
+        // }
+        cv::circle(frame_cp, cv::Point(344, 216), 10, cv::Scalar(255, 0, 0));
+        cv::namedWindow("out");
+        cv::resizeWindow("out", 640, 480);
         cv::imshow("out", frame_cp);
         if(cv::waitKey(1)==27)
             break;
