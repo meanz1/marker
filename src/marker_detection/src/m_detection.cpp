@@ -188,26 +188,24 @@ int main(int argc, char **argv)
                 }
             }
             cv::aruco::estimatePoseSingleMarkers(corners, 0.2, camMatrix, distCoeffs, rvecs, tvecs);
-            std::cout << "tvec_board 0 : " << tvec_board[0] << std ::endl;
-            std::cout << "tvec_board 1 : " << tvec_board[1] << std ::endl;
-            std::cout << "tvec_board 2 : " << tvec_board[2] << std ::endl;
 
             cv::Mat R_inv, T_inv;
             cv::Rodrigues(rvec_board, R);
             R_inv = R.inv();
-
+            cv::Rodrigues(R_inv, rvecs_inv);
             T_inv = -R_inv * tvec_board;
 
             std::cout << "R_inv size : " << R_inv.size() << std::endl;
+            std::cout << "rvecs_inv size : " << rvecs_inv.size() << std::endl;
             std::cout << "T_inv size : " << T_inv.size() << std::endl;
-            std::cout << "Rvecs_inv size : " << rvecs_inv.size() << std::endl;
+            // std::cout << "Rvecs_inv size : " << rvecs_inv.size() << std::endl;
 
             std::cout << "c2m distance" << std::sqrt(tvec_board[0] * tvec_board[0] + tvec_board[1] * tvec_board[1] + tvec_board[2] * tvec_board[2]) << std::endl;
 
             // auto transform = create_transform(T_inv, rvecs_inv);
             // auto transform = create_transform(T_inv, R_inv);
             // auto transform_v = create_transform_v(tvec_board, rvec_board);
-            auto transform_m = create_transform_m(T_inv, R_inv);
+            auto transform_m = create_transform_m(T_inv, rvecs_inv);
             geometry_msgs::TransformStamped tf_msg_v;
             geometry_msgs::TransformStamped tf_msg_m;
             tf_msg_v.header.stamp = ros::Time::now();
