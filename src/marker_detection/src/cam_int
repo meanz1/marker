@@ -1,6 +1,6 @@
 %YAML:1.0
 ---
-calibration_time: "2022년 04월 21일 (thur) 오전 11시 28분 29초"
+calibration_time: "2022년 05월 20일 (thur) 오전 10시 43분 29초"
 image_width: 640
 image_height: 480
 flags: 0
@@ -8,10 +8,10 @@ camera_matrix: !!opencv-matrix
    rows: 3
    cols: 3
    dt: d
-   data: [460.671630, 0., 344.245269, 0., 460.937962, 216.153760, 0., 0., 1.]
+   data: [444.688935, 0., 321.435515, 0., 446.063614, 254.505181, 0., 0., 1.]
 distortion_coefficients: !!opencv-matrix
    rows: 1
    cols: 5
    dt: d
-   data: [-0.044177, 0.016345, -0.001900, -0.003101, 0.]
+   data: [0.060617, -0.115687, 0.003970, -0.004359, 0.]
 avg_reprojection_error: 2.0449287859689913e-01                                     
