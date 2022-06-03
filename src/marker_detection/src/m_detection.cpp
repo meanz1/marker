@@ -20,13 +20,14 @@
 #include <tf2/LinearMath/Vector3.h>
 #include <tf2/LinearMath/Transform.h>
 #include <tf2_msgs/TFMessage.h>
+#include <tf/transform_datatypes.h>
 #include <deque>
 
 cv::Mat frame;
 cv::Mat frame_cp;
 bool flag = false;
 tf2::Quaternion q;
-
+tf2::Quaternion q_;
 // marker2cam (matrix)
 
 tf2::Vector3 cv_vector3d_to_tf_vector3_m(const cv::Mat &vec)
@@ -76,9 +77,9 @@ tf2::Quaternion cv_vector3d_to_tf_quaternion_v(const cv::Vec3d &rvec)
     auto qy = ay * sina / angle;
     auto qz = az * sina / angle;
     auto qw = cosa;
-    tf2::Quaternion q;
-    q.setValue(qx, qy, qz, qw);
-    return q;
+    
+    q_.setValue(qx, qy, qz, qw);
+    return q_;
 }
 
 tf2::Transform create_transform_v(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
@@ -116,7 +117,7 @@ int main(int argc, char **argv)
     // cv::VideoCapture inputVideo(0);
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.1485, 0.0135, dictionary);
+    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.1485, 0.0135, dictionary); 
 
     // for (int i = 0; i < 35; i++)
     // {
@@ -190,6 +191,14 @@ int main(int argc, char **argv)
         if (flag == true)
         {
             cv::aruco::detectMarkers(frame, dictionary, corners, ids);
+            
+            for (int i = 0; i < ids.size(); i++)
+            {
+                for (int j = 0; j < 4; j ++)
+                {
+                    std::cout << "[" << i << "] : " << corners[i][j] << std::endl;
+                }
+            }
             // cv::aruco::detectMarkers(frame, board.dictionary, corners, ids);
 
             if (ids.size() > 0)
@@ -204,7 +213,7 @@ int main(int argc, char **argv)
                     cv::drawFrameAxes(frame_cp, camMatrix, distCoeffs, rvec_board, tvec_board, 0.1);
                 }
             }
-            cv::aruco::estimatePoseSingleMarkers(corners, 0.2, camMatrix, distCoeffs, rvecs, tvecs);
+            // cv::aruco::estimatePoseSingleMarkers(corners, 0.2, camMatrix, distCoeffs, rvecs, tvecs);
 
             cv::Mat R_inv, T_inv;
             cv::Rodrigues(rvec_board, R);
@@ -287,6 +296,8 @@ int main(int argc, char **argv)
             }
             dqy_ave = dqy_sum / dqy.size();
 
+    
+    
             std::cout << "x : " << transform_m.getOrigin().getX() << " y : " << transform_m.getOrigin().getY() << " z : " << transform_m.getOrigin().getZ() << std::endl;
             std::cout << "dqx ave : " << dqx_ave << std::endl;
             std::cout << "dqx size : " << dqx.size() << std::endl;
@@ -306,20 +317,24 @@ int main(int argc, char **argv)
                 value_text.open("/home/cona/marker/src/marker_detection/src/value.txt");
                 std::string str = "TRANSFORMATION x : " + std::to_string(dqx_ave) + " y : " + std::to_string(dqy_ave) + " z : " + std::to_string(dqz_ave);
 
-                double sinr_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.z);
-                double cosr_cosp = 1 - 2 * (tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y);
-                double roll = std::atan2(sinr_cosp, cosr_cosp);
+                // double sinr_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.z);
+                // double cosr_cosp = 1 - 2 * (tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y);
+                // double roll = std::atan2(sinr_cosp, cosr_cosp);
 
-                double sinp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.y - tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.x);
-                double pitch = 0;
-                if (std::abs(sinp) >= 1)
-                    pitch = std::copysign(M_PI / 2, sinp);
-                else
-                    pitch = std::asin(sinp);
+                // double sinp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.y - tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.x);
+                // double pitch = 0;
+                // if (std::abs(sinp) >= 1)
+                //     pitch = std::copysign(M_PI / 2, sinp);
+                // else
+                //     pitch = std::asin(sinp);
 
-                double siny_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.z + tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.y);
-                double cosy_cosp = 1 - 2 * (tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y + tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.z);
-                double yaw = std::atan2(siny_cosp, cosy_cosp);
+                // double siny_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.z + tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.y);
+                // double cosy_cosp = 1 - 2 * (tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y + tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.z);
+                // double yaw = std::atan2(siny_cosp, cosy_cosp);
+                
+                tf2::Matrix3x3 m(q_);                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      ::Matrix3x3 m(q_);
+                double roll=0.0, pitch=0.0, yaw=0.0;
+                m.getRPY(roll, pitch, yaw);
 
                 std::string str_r = " ROTATION r : " + std::to_string(roll) + " p : " + std::to_string(pitch) + " y : " + std::to_string(yaw);
 
