@@ -152,6 +152,7 @@ int main(int argc, char **argv)
 
     std::string marker_tf_prefix;
     std::string marker_tf_prefix2;
+    std::string marker_tf_prefix3;
 
     std::vector<int> ids;
     std::vector<std::vector<cv::Point2f>> corners;
@@ -259,6 +260,24 @@ int main(int argc, char **argv)
             // tf_msg_m.transform.translation.y = transform_m.getOrigin().getY();
             // tf_msg_m.transform.translation.z = transform_m.getOrigin().getZ();
             tf_msg_m.setOrigin(tf::Vector3(transform_m.getOrigin().getX(), transform_m.getOrigin().getY(), transform_m.getOrigin().getZ()));
+
+            // tf_msg_m.transform.rotation.x = transform_m.getRotation().getX();
+            // tf_msg_m.transform.rotation.y = transform_m.getRotation().getY();
+            // tf_msg_m.transform.rotation.z = transform_m.getRotation().getZ();
+            // tf_msg_m.transform.rotation.w = transform_m.getRotation().getW();
+            tf_msg_m.setRotation(tf::Quaternion(transform_m.getRotation().getX(), transform_m.getRotation().getY(), transform_m.getRotation().getZ(), transform_m.getRotation().getW()));
+            br.sendTransform(tf_msg_v);
+            tf::StampedTransform tf_st_msg_m(tf_msg_m, ros::Time::now(), "marker", "cam");
+            br.sendTransform(tf_st_msg_m);
+
+            tf::StampedTransform tf_m;
+
+            bool output = false;
+            bool scs = listener.waitForTransform("/base_link", "/cam", ros::Time(0), ros::Duration(1.0));
+            if (!scs)
+                return output;
+            listener.lookupTransform("/base_link", "/cam", ros::Time(0), tf_m);
+
             if (dqz.size() >= 10)
             {
                 dqz.pop_front();
@@ -274,53 +293,14 @@ int main(int argc, char **argv)
                 dqy.pop_front();
             }
 
-            dqx.push_back(tf_msg_m.getOrigin().getX());
-            dqy.push_back(tf_msg_m.getOrigin().getY());
-            dqz.push_back(tf_msg_m.getOrigin().getZ());
+            dqx.push_back(tf_m.getOrigin().getX());
+            dqy.push_back(tf_m.getOrigin().getY());
+            dqz.push_back(tf_m.getOrigin().getZ());
 
-            double dqx_sum = 0;
-            double dqy_sum = 0;
-            double dqz_sum = 0;
-
-            for (int i = 0; i < dqz.size(); i++)
-            {
-                dqz_sum += dqz.at(i);
-            }
-            dqz_ave = dqz_sum / dqz.size();
-
-            for (int i = 0; i < dqx.size(); i++)
-            {
-                dqx_sum += dqx.at(i);
-            }
-            dqx_ave = dqx_sum / dqx.size();
-
-            for (int i = 0; i < dqy.size(); i++)
-            {
-                dqy_sum += dqy.at(i);
-            }
-            dqy_ave = dqy_sum / dqy.size();
-
-            std::cout << "x : " << transform_m.getOrigin().getX() << " y : " << transform_m.getOrigin().getY() << " z : " << transform_m.getOrigin().getZ() << std::endl;
-            std::cout << "dqx ave : " << dqx_ave << std::endl;
-            std::cout << "dqx size : " << dqx.size() << std::endl;
-            std::cout << "dqy ave : " << dqy_ave << std::endl;
-            std::cout << "dqy size : " << dqy.size() << std::endl;
-            std::cout << "dqz ave : " << dqz_ave << std::endl;
-            std::cout << "dqz size : " << dqz.size() << std::endl;
-
-            // tf_msg_m.transform.rotation.x = transform_m.getRotation().getX();
-            // tf_msg_m.transform.rotation.y = transform_m.getRotation().getY();
-            // tf_msg_m.transform.rotation.z = transform_m.getRotation().getZ();
-            // tf_msg_m.transform.rotation.w = transform_m.getRotation().getW();
-            tf_msg_m.setRotation(tf::Quaternion(transform_m.getRotation().getX(), transform_m.getRotation().getY(), transform_m.getRotation().getZ(), transform_m.getRotation().getW()));
-            br.sendTransform(tf_msg_v);
-            tf::StampedTransform tf_st_msg_m(tf_msg_m, ros::Time::now(), "marker", "cam");
-            br.sendTransform(tf_st_msg_m);
             if (dqx.size() == 10)
             {
                 std::ofstream value_text;
                 value_text.open("/home/cona/marker/src/marker_detection/src/value.txt");
-                std::string str = "TRANSFORMATION x : " + std::to_string(dqx_ave) + " y : " + std::to_string(dqy_ave) + " z : " + std::to_string(dqz_ave);
 
                 // double sinr_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.z);
                 // double cosr_cosp = 1 - 2 * (tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y);
@@ -336,20 +316,55 @@ int main(int argc, char **argv)
                 // double siny_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.z + tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.y);
                 // double cosy_cosp = 1 - 2 * (tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y + tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.z);
                 // double yaw = std::atan2(siny_cosp, cosy_cosp);
-                bool output = false;
-                bool scs = listener.waitForTransform("/cam", "/base_link", ros::Time(0), ros::Duration(1.0));
-                if (!scs)
-                    return output;
-                listener.lookupTransform("/cam", "/base_link", ros::Time(0), tf_st_msg_m);
 
+                double dqx_sum = 0;
+                double dqy_sum = 0;
+                double dqz_sum = 0;
+
+                for (int i = 0; i < dqz.size(); i++)
+                {
+                    dqz_sum += dqz.at(i);
+                }
+                dqz_ave = dqz_sum / dqz.size();
+
+                for (int i = 0; i < dqx.size(); i++)
+                {
+                    dqx_sum += dqx.at(i);
+                }
+                dqx_ave = dqx_sum / dqx.size();
+
+                for (int i = 0; i < dqy.size(); i++)
+                {
+                    dqy_sum += dqy.at(i);
+                }
+                dqy_ave = dqy_sum / dqy.size();
+
+                std::cout << "tf_m X : " << tf_m.getOrigin().getX() << " Y : " << tf_m.getOrigin().getY() << " Z : " << tf_m.getOrigin().getZ() << std::endl;
+                std::cout << "tf_m X : " << tf_m.getRotation().getX() << " Y : " << tf_m.getRotation().getY() << " Z : " << tf_m.getRotation().getZ() << " W : " << tf_m.getRotation().getW() << std::endl;
+
+                geometry_msgs::TransformStamped tf_m_msg;
+                tf_m_msg.header.stamp = ros::Time::now();
+                tf_m_msg.header.frame_id = "base_link";
+                std::stringstream sss;
+                sss << marker_tf_prefix3 << "test";
+                tf_m_msg.child_frame_id = sss.str();
+                tf_m_msg.transform.translation.x = tf_m.getOrigin().getX();
+                tf_m_msg.transform.translation.y = tf_m.getOrigin().getY();
+                tf_m_msg.transform.translation.z = tf_m.getOrigin().getZ();
+
+                tf_m_msg.transform.rotation.x = tf_m.getRotation().getX();
+                tf_m_msg.transform.rotation.y = tf_m.getRotation().getY();
+                tf_m_msg.transform.rotation.z = tf_m.getRotation().getZ();
+                tf_m_msg.transform.rotation.w = tf_m.getRotation().getW();
+                br.sendTransform(tf_m_msg);
                 // br.sendTransform(tf_b2c);
 
                 tf::Quaternion value_rpy;
-                value_rpy.setValue(tf_msg_v.transform.rotation.x, tf_msg_v.transform.rotation.y, tf_msg_v.transform.rotation.z, tf_msg_v.transform.rotation.w);
+                value_rpy.setValue(tf_m.getRotation().getX(), tf_m.getRotation().getY(), tf_m.getRotation().getZ(), tf_m.getRotation().getW());
                 tf::Matrix3x3 m(value_rpy);
                 double roll = 0.0, pitch = 0.0, yaw = 0.0;
                 m.getRPY(roll, pitch, yaw);
-
+                std::string str = "TRANSFORMATION x : " + std::to_string(dqx_ave) + " y : " + std::to_string(dqy_ave) + " z : " + std::to_string(dqz_ave);
                 std::string str_r = " ROTATION r : " + std::to_string(roll) + " p : " + std::to_string(pitch) + " y : " + std::to_string(yaw);
 
                 value_text.write(str.c_str(), str.size());
