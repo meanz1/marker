@@ -138,9 +138,9 @@ void cam_link2cam_optical()
     
         // adverse
         R_cam_link_ad = R_cam_link.inverse();
-
-        cv::Mat rotation_cam_link_ad;
-
+        std::cout<<"1"<<std::endl;
+        cv::Mat rotation_cam_link_ad(3, 3, CV_8UC3);
+        std::cout<<"2"<<std::endl;
         for(int i = 0; i < 3; i ++)
         {
             for(int j = 0; j < 3; j++)
@@ -148,14 +148,16 @@ void cam_link2cam_optical()
                 rotation_cam_link_ad.at<double>(i, j) = R_cam_link_ad.getRow(i)[j]; 
             }
         }
+        std::cout<<"3"<<std::endl;
         rotation_cam_link_ad -= rotation_cam_link_ad;
-
+        std::cout<<"4"<<std::endl;
         tf::Matrix3x3 R_cam_link_ad_(rotation_cam_link_ad.at<double>(0, 0), rotation_cam_link_ad.at<double>(0, 1), rotation_cam_link_ad.at<double>(0, 2), rotation_cam_link_ad.at<double>(1, 0), rotation_cam_link_ad.at<double>(1, 1), rotation_cam_link_ad.at<double>(1, 2), rotation_cam_link_ad.at<double>(2, 0), rotation_cam_link_ad.at<double>(2, 1), rotation_cam_link_ad.at<double>(2, 2));
-
+        std::cout<<"5"<<std::endl;
         T_cam_link_ad = R_cam_link_ad_ * T_cam_link;
+        std::cout<<"6"<<std::endl;
         tf::Transform t_base(R_cam_link_ad_, T_cam_link_ad);
         //auto t_base = create_transform_m(T_cam_link_ad, R_cam_link_ad);
-        
+        std::cout<<"7"<<std::endl;
         tf_base_msg.setOrigin(tf::Vector3(t_base.getOrigin().getX(), t_base.getOrigin().getY(), t_base.getOrigin().getZ()));
         tf_base_msg.setRotation(tf::Quaternion(t_base.getRotation().getX(), t_base.getRotation().getY(), t_base.getRotation().getZ(), t_base.getRotation().getW()));
         
