@@ -30,7 +30,14 @@ bool flag = false;
 tf::Quaternion q;
 tf::Quaternion q_;
 // marker2cam (matrix)
+tf::Matrix3x3 R_cam_link;
+tf::Vector3 T_cam_link;
 
+//adverse
+tf::Matrix3x3 R_cam_link_ad;
+tf::Vector3 T_cam_link_ad;
+tf::Transform tf_base_msg;
+// tf::StampedTransform base_st;
 tf::Vector3 cv_vector3d_to_tf_vector3_m(const cv::Mat &vec)
 {
     return {vec.at<double>(0, 0), vec.at<double>(1, 0), vec.at<double>(2, 0)};
@@ -113,13 +120,61 @@ void imagecallback(const sensor_msgs::ImageConstPtr &msg)
     }
 }
 
+void cam_link2cam_optical()
+{
+    // tf_listener adverse of cam_link to cam_optical
+    tf::StampedTransform tf_cam_msg;
+    tf::StampedTransform tf_base2camera_link;
+    tf::TransformListener listener_cam_link;
+    
+    bool flag_listener = listener_cam_link.waitForTransform("/camera_link", "/camera_rgb_optical_frame", ros::Time(0), ros::Duration(1.0));
+    try
+    {
+        listener_cam_link.lookupTransform("/camera_link", "/camera_rgb_optical_frame", ros::Time(0), tf_cam_msg);
+
+        R_cam_link = tf::Matrix3x3(tf_cam_msg.getRotation());
+        T_cam_link = tf::Vector3(tf_cam_msg.getOrigin().x(), tf_cam_msg.getOrigin().y(), tf_cam_msg.getOrigin().z());
+        std::cout << "T_cam_link : " << tf_cam_msg.getOrigin().x() << " " << tf_cam_msg.getOrigin().y() << " " << tf_cam_msg.getOrigin().z() << " " << std::endl;
+    
+        // adverse
+        R_cam_link_ad = R_cam_link.inverse();
+
+        cv::Mat rotation_cam_link_ad;
+
+        for(int i = 0; i < 3; i ++)
+        {
+            for(int j = 0; j < 3; j++)
+            {
+                rotation_cam_link_ad.at<double>(i, j) = R_cam_link_ad.getRow(i)[j]; 
+            }
+        }
+        rotation_cam_link_ad -= rotation_cam_link_ad;
+
+        tf::Matrix3x3 R_cam_link_ad_(rotation_cam_link_ad.at<double>(0, 0), rotation_cam_link_ad.at<double>(0, 1), rotation_cam_link_ad.at<double>(0, 2), rotation_cam_link_ad.at<double>(1, 0), rotation_cam_link_ad.at<double>(1, 1), rotation_cam_link_ad.at<double>(1, 2), rotation_cam_link_ad.at<double>(2, 0), rotation_cam_link_ad.at<double>(2, 1), rotation_cam_link_ad.at<double>(2, 2));
+
+        T_cam_link_ad = R_cam_link_ad_ * T_cam_link;
+        tf::Transform t_base(R_cam_link_ad_, T_cam_link_ad);
+        //auto t_base = create_transform_m(T_cam_link_ad, R_cam_link_ad);
+        
+        tf_base_msg.setOrigin(tf::Vector3(t_base.getOrigin().getX(), t_base.getOrigin().getY(), t_base.getOrigin().getZ()));
+        tf_base_msg.setRotation(tf::Quaternion(t_base.getRotation().getX(), t_base.getRotation().getY(), t_base.getRotation().getZ(), t_base.getRotation().getW()));
+        
+        
+        
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << e.what() << '\n';
+    }
+}
+
 int main(int argc, char **argv)
 {
     // cv::VideoCapture inputVideo(0);
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.1485, 0.0135, dictionary);
-
+    
     // for (int i = 0; i < 35; i++)
     // {
     //     std::cout << "board : " << board.objPoints[i][0] << board.objPoints[i][1] << board.objPoints[i][2] << board.objPoints[i][3] << std::endl;
@@ -168,7 +223,7 @@ int main(int argc, char **argv)
 
     tf::TransformBroadcaster br;
     // tf_msgs::TFMessage tf_msg_list_;
-
+    tf::TransformListener listener_base2camera_link;
     cv::FileStorage f_s(filename, cv::FileStorage::READ);
 
     if (!f_s.isOpened())
@@ -188,6 +243,8 @@ int main(int argc, char **argv)
     image_transport::Subscriber sub = it.subscribe("/camera/rgb/image_raw", 1, imagecallback);
     tf::StampedTransform tf_b2c;
     tf::TransformListener listener;
+
+    tf::TransformListener listener_cam;
     ros::Rate loop_rate(10);
 
     while (ros::ok())
@@ -250,27 +307,21 @@ int main(int argc, char **argv)
             auto transform_m = create_transform_m(T_inv, rvecs_inv); // m2c
             // geometry_msgs::TransformStamped tf_msg_m;
             tf::Transform tf_msg_m;
-            // tf_msg_m.header.stamp = ros::Time::now();
-            // tf_msg_m.header.frame_id = "marker";
-            // std::stringstream mss;
-            // mss << marker_tf_prefix2 << "cam";
-            // tf_msg_m.child_frame_id = mss.str();
-
-            // tf_msg_m.transform.translation.x = transform_m.getOrigin().getX();
-            // tf_msg_m.transform.translation.y = transform_m.getOrigin().getY();
-            // tf_msg_m.transform.translation.z = transform_m.getOrigin().getZ();
+            
             tf_msg_m.setOrigin(tf::Vector3(transform_m.getOrigin().getX(), transform_m.getOrigin().getY(), transform_m.getOrigin().getZ()));
-
-            // tf_msg_m.transform.rotation.x = transform_m.getRotation().getX();
-            // tf_msg_m.transform.rotation.y = transform_m.getRotation().getY();
-            // tf_msg_m.transform.rotation.z = transform_m.getRotation().getZ();
-            // tf_msg_m.transform.rotation.w = transform_m.getRotation().getW();
             tf_msg_m.setRotation(tf::Quaternion(transform_m.getRotation().getX(), transform_m.getRotation().getY(), transform_m.getRotation().getZ(), transform_m.getRotation().getW()));
+            
             br.sendTransform(tf_msg_v);
             tf::StampedTransform tf_st_msg_m(tf_msg_m, ros::Time::now(), "marker", "cam");
             br.sendTransform(tf_st_msg_m);
 
             tf::StampedTransform tf_m;
+            tf::StampedTransform cam_optical2cam_link;
+
+            cam_link2cam_optical();
+            tf::StampedTransform base_st(tf_base_msg, ros::Time::now(), "camera_link", "b_test");
+
+            br.sendTransform(base_st);
 
             bool output = false;
             bool scs = listener.waitForTransform("/base_link", "/cam", ros::Time(0), ros::Duration(1.0));
@@ -278,6 +329,12 @@ int main(int argc, char **argv)
                 return output;
             listener.lookupTransform("/base_link", "/cam", ros::Time(0), tf_m);
 
+            // bool cam_optical_s = listener_cam.waitForTransform("/")
+            bool aaa = listener_base2camera_link.waitForTransform("/base_link", "/b_test", ros::Time(0), ros::Duration(1.0));
+            if (!aaa)
+                return output;
+            listener_base2camera_link.lookupTransform("/base_link", "b_test", ros::Time(0), cam_optical2cam_link);
+            
             if (dqz.size() >= 10)
             {
                 dqz.pop_front();
@@ -301,21 +358,6 @@ int main(int argc, char **argv)
             {
                 std::ofstream value_text;
                 value_text.open("/home/cona/marker/src/marker_detection/src/value.txt");
-
-                // double sinr_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.z);
-                // double cosr_cosp = 1 - 2 * (tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.x + tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y);
-                // double roll = std::atan2(sinr_cosp, cosr_cosp);
-
-                // double sinp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.y - tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.x);
-                // double pitch = 0;
-                // if (std::abs(sinp) >= 1)
-                //     pitch = std::copysign(M_PI / 2, sinp);
-                // else
-                //     pitch = std::asin(sinp);
-
-                // double siny_cosp = 2 * (tf_msg_v.transform.rotation.w * tf_msg_v.transform.rotation.z + tf_msg_v.transform.rotation.x * tf_msg_v.transform.rotation.y);
-                // double cosy_cosp = 1 - 2 * (tf_msg_v.transform.rotation.y * tf_msg_v.transform.rotation.y + tf_msg_v.transform.rotation.z * tf_msg_v.transform.rotation.z);
-                // double yaw = std::atan2(siny_cosp, cosy_cosp);
 
                 double dqx_sum = 0;
                 double dqy_sum = 0;
