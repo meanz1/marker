@@ -184,11 +184,14 @@ int main(int argc, char **argv)
 
             cv::Mat R_inv, T_inv;
             cv::Rodrigues(rvec_board, R);
-            R_inv = R.inv();
+            R_inv = R.t();
             cv::Rodrigues(R_inv, rvecs_inv);
             T_inv = -R_inv * tvec_board;
             // cv::Rodrigues(tvec_board, T_inv);
             // T_inv = T_inv.inv();
+
+            std::cout << tvec_board[0] << " " << tvec_board[1] << " " << tvec_board[2] << " " <<std::endl;
+            std::cout << T_inv.at<double>(0,0) << " " << T_inv.at<double>(1,0) << " " << T_inv.at<double>(2,0) << " " <<std::endl;
             tf::Transform transform_m = create_transform(T_inv, rvecs_inv);
             // marker2cam
             tf::StampedTransform tf_m;
