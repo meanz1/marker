@@ -62,42 +62,11 @@ tf::Quaternion cv_vector3d_to_tf_quaternion_m(const cv::Mat &rvec)
     return q;
 }
 
-tf::Transform create_transform_m(const cv::Mat &tvec, const cv::Mat &rvec)
+tf::Transform create_transform(const cv::Mat &tvec, const cv::Mat &rvec)
 {
     tf::Transform transform;
     transform.setOrigin(cv_vector3d_to_tf_vector3_m(tvec));
     transform.setRotation(cv_vector3d_to_tf_quaternion_m(rvec));
-    return transform;
-}
-
-// cam2marker (cv::Vec ver)
-
-tf::Vector3 cv_vector3d_to_tf_vector3_v(const cv::Vec3d &vec)
-{
-    return {vec[0], vec[1], vec[2]};
-}
-
-tf::Quaternion cv_vector3d_to_tf_quaternion_v(const cv::Vec3d &rvec)
-{
-    cv::Mat rotation_mat;
-    auto ax = rvec[0], ay = rvec[1], az = rvec[2];
-    auto angle = sqrt(ax * ax + ay * ay + az * az);
-    auto cosa = cos(angle * 0.5);
-    auto sina = sin(angle * 0.5);
-    auto qx = ax * sina / angle;
-    auto qy = ay * sina / angle;
-    auto qz = az * sina / angle;
-    auto qw = cosa;
-
-    q_.setValue(qx, qy, qz, qw);
-    return q_;
-}
-
-tf::Transform create_transform_v(const cv::Vec3d &tvec, const cv::Vec3d &rvec)
-{
-    tf::Transform transform;
-    transform.setOrigin(cv_vector3d_to_tf_vector3_v(tvec));
-    transform.setRotation(cv_vector3d_to_tf_quaternion_v(rvec));
     return transform;
 }
 
@@ -122,13 +91,6 @@ void imagecallback(const sensor_msgs::ImageConstPtr &msg)
         ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
     }
 }
-
-void cam_link2cam_optical()
-{
-    // tf_listener adverse of cam_link to cam_optical
-    
-}
-
 int main(int argc, char **argv)
 {
 
@@ -192,6 +154,9 @@ int main(int argc, char **argv)
     tf::TransformListener listener_cam;
     ros::Rate loop_rate(10);
 
+    tf::Matrix3x3 m2c_r;
+    tf::Vector3 m2c_t;
+
     while (ros::ok())
     {
         if (flag == true)
@@ -222,32 +187,32 @@ int main(int argc, char **argv)
             R_inv = R.inv();
             cv::Rodrigues(R_inv, rvecs_inv);
             T_inv = -R_inv * tvec_board;
-
-            // std::cout << "c2m distance" << std::sqrt(tvec_board[0] * tvec_board[0] + tvec_board[1] * tvec_board[1] + tvec_board[2] * tvec_board[2]) << std::endl;
-
-            // cam2marker
-            // auto transform_v = create_transform_v(tvec_board, rvec_board); // c2m
-            // geometry_msgs::TransformStamped tf_msg_v;
-            // tf_msg_v.header.stamp = ros::Time::now();
-            // tf_msg_v.header.frame_id = "camera_rgb_optical_frame";
-            // std::stringstream ss;
-            // ss << marker_tf_prefix << "marker__";
-            // tf_msg_v.child_frame_id = ss.str();
-            // tf_msg_v.transform.translation.x = transform_v.getOrigin().getX();
-            // tf_msg_v.transform.translation.y = transform_v.getOrigin().getY();
-            // tf_msg_v.transform.translation.z = transform_v.getOrigin().getZ();
-            // std::cout << "x : " << transform_v.getOrigin().getX() << " y : " << transform_v.getOrigin().getY() << " z : " << transform_v.getOrigin().getZ() << std::endl;
-            // tf_msg_v.transform.rotation.x = transform_v.getRotation().getX();
-            // tf_msg_v.transform.rotation.y = transform_v.getRotation().getY();
-            // tf_msg_v.transform.rotation.z = transform_v.getRotation().getZ();
-            // tf_msg_v.transform.rotation.w = transform_v.getRotation().getW();
-
-            // br_1.sendTransform(tf_msg_v);
-
+            // cv::Rodrigues(tvec_board, T_inv);
+            // T_inv = T_inv.inv();
+            tf::Transform transform_m = create_transform(T_inv, rvecs_inv);
             // marker2cam
             tf::StampedTransform tf_m;
-            auto transform_m = create_transform_m(T_inv, rvecs_inv); // m2c
+            // auto transform_m = create_transform_m(T_inv, rvecs_inv); // m2c
+            // m2c_t[0] = T_inv.at<double>(0, 0);
+            // m2c_t[1] = T_inv.at<double>(1, 0);
+            // m2c_t[2] = T_inv.at<double>(2, 0);
 
+            // std::cout << " R_inv.size() : " << rvecs_inv.rows << " " << rvecs_inv.cols << std::endl;
+
+            // std::cout << m2c_t[0] << " " << m2c_t[1] << " " << m2c_t[2] << " " << std::endl;
+
+            // m2c_r[0][0] = R_inv.at<double>(0, 0);
+            // m2c_r[0][1] = R_inv.at<double>(0, 1);
+            // m2c_r[0][2] = R_inv.at<double>(0, 2);
+            // m2c_r[1][0] = R_inv.at<double>(1, 0);
+            // m2c_r[1][1] = R_inv.at<double>(1, 1);
+            // m2c_r[1][2] = R_inv.at<double>(1, 2);
+            // m2c_r[2][0] = R_inv.at<double>(2, 0);
+            // m2c_r[2][1] = R_inv.at<double>(2, 1);
+            // m2c_r[2][2] = R_inv.at<double>(2, 2);
+
+
+            // tf::Transform transform_m(m2c_r, m2c_t);
             tf::Transform tf_msg_m;
             // tf_msg_m.setOrigin(tf::Vector3(transform_m.getOrigin().getX(), transform_m.getOrigin().getY(), transform_m.getOrigin().getZ()));
             // tf_msg_m.setRotation(tf::Quaternion(transform_m.getRotation().getX(), transform_m.getRotation().getY(), transform_m.getRotation().getZ(), transform_m.getRotation().getW()));
@@ -277,93 +242,25 @@ int main(int argc, char **argv)
             // edit /////////////now /////////////////
 
             bool a = listener_cam_link.waitForTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), ros::Duration(1.0));
-
-            // listener_cam_link.waitForTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), ros::Duration(1.0));
-            // listener_cam_link.waitForTransform("/camera_rgb_frame", "/camera_rgb_optical_frame", ros::Time(0), ros::Duration(1.0));
-            // listener_cam_link.waitForTransform("/camera_link", "/camera_rgb_frame", ros::Time(0), ros::Duration(1.0));
-            if(a)
+             if(a)
             {
                 listener_cam_link.lookupTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), tf_cam_msg);
                 // listener_cam_link.lookupTransform("/camera_link", "/camera_rgb_frame", ros::Time(0), tf_cam_msg2);
 
                 R_cam_link = tf::Matrix3x3(tf_cam_msg.getRotation());
                 T_cam_link = tf::Vector3(tf_cam_msg.getOrigin().x(), tf_cam_msg.getOrigin().y(), tf_cam_msg.getOrigin().z());
-                // cv::Vec3d tf2cv;
-                // tf2cv[0] = T_cam_link[0];
-                // tf2cv[1] = T_cam_link[1];
-                // tf2cv[2] = T_cam_link[2];
-
-                // cv::Mat test_a;
-                // cv::Rodrigues(tf2cv, test_a);
                 
-                // cv::Vec3d tf2cv_;
-                // cv::Rodrigues(test_a.inv(), tf2cv_);
-                // tf::Vector3 T_inv = tf::Vector3(tf2cv_[0], tf2cv_[1], tf2cv_[2]);
-                // R_cam_link2 = tf::Matrix3x3(tf_cam_msg2.getRotation());
-                // T_cam_link2 = tf::Vector3(tf_cam_msg2.getOrigin().x(), tf_cam_msg2.getOrigin().y(), tf_cam_msg2.getOrigin().z());
-                // std::cout << "T_cam_link : " << tf_cam_msg.getOrigin().x() << " " << tf_cam_msg.getOrigin().y() << " " << tf_cam_msg.getOrigin().z() << " " << std::endl;
-                // std::cout << tf_cam_msg.getRotation().getX() << " " << tf_cam_msg.getRotation().getY() << " " << tf_cam_msg.getRotation().getZ() << " " << tf_cam_msg.getRotation().getW()<< " " << std::endl;
-                // tf::Transform t_base(R_cam_link, T_cam_link);
-
-                // R_cam_link_ad = tf::Matrix3x3(tf_cam_msg.getRotation().inverse());
-                // cv::Mat rotation_cam_link_ad = cv::Mat::zeros(3, 3, CV_8UC3);
-                // cv::Mat rotation_cam_link_ad_ = cv::Mat::zeros(3, 3, CV_8UC3);
-
-                // for (int i = 0; i < 3; i++)
-                // {
-                //     for (int j = 0; j < 3; j++)
-                //     {
-                //         rotation_cam_link_ad.at<double>(i, j) = R_cam_link_ad.getRow(i)[j];
-                //     }
-                // }
-
-                // T_cam_link_ad = tf::Vector3(tf_cam_msg.getOrigin().inverse());
-                // // adverse
-                // R_cam_link_ad = R_cam_link.inverse();
-
-                
-                // cv::Rodrigues(cv::Vec3d({0.0, 0.0, 0.0}), rotation_cam_link_ad);
-
-                // for (int i = 0; i < 3; i++)
-                // {
-                //     for (int j = 0; j < 3; j++)
-                //     {
-                //         rotation_cam_link_ad.at<double>(i, j) = R_cam_link_ad.getRow(i)[j];
-                //         std::cout << i << j << " : " << rotation_cam_link_ad.at<double>(i, j) << std::endl;
-                //     }
-                // }
-                // tf::Matrix3x3 R_cam_link_ad_;
-                // rotation_cam_link_ad_ = -rotation_cam_link_ad;
-                // for (int i = 0; i < 3; i++)
-                // {
-                //     for (int j = 0; j < 3; j++)
-                //     {
-                //         std::cout << i << j << " : " << rotation_cam_link_ad.at<double>(i, j) << std::endl;
-                //         std::cout << i << j << " : " << rotation_cam_link_ad_.at<double>(i, j) << std::endl;
-                //     }
-                // }
-                // tf::Matrix3x3 R_cam_link_ad_(rotation_cam_link_ad.at<double>(0, 0), rotation_cam_link_ad.at<double>(0, 1), rotation_cam_link_ad.at<double>(0, 2), rotation_cam_link_ad.at<double>(1, 0), rotation_cam_link_ad.at<double>(1, 1), rotation_cam_link_ad.at<double>(1, 2), rotation_cam_link_ad.at<double>(2, 0), rotation_cam_link_ad.at<double>(2, 1), rotation_cam_link_ad.at<double>(2, 2));
-
-                // T_cam_link_ad = R_cam_link_ad_ * T_cam_link;
-                
-                // std::cout << T_cam_link_ad.getX() << " " << T_cam_link_ad.getY() << " " << T_cam_link_ad.getZ() << " " << std::endl;
-                // tf::Transform t_base(R_cam_link_ad, T_cam_link_ad);
                 
                 tf::Transform t_base(R_cam_link, T_cam_link);
-                // tf::Transform t_base(R_cam_link, T_inv);
+               
 
                 std::cout << "this point 1" << std::endl;
-                // tf_base_msg.setOrigin(tf::Vector3(t_base.getOrigin().getX(), t_base.getOrigin().getY(), t_base.getOrigin().getZ()));
-                // tf_base_msg.setRotation(tf::Quaternion(t_base.getRotation().getX(), t_base.getRotation().getY(), t_base.getRotation().getZ(), t_base.getRotation().getW()));
-
-                // std::cout << "x : " << tf_base_msg.getOrigin().getX() << " y : " << tf_base_msg.getOrigin().getY() << " z : " << tf_base_msg.getOrigin().getZ() << std::endl;
-                // std::cout << "x : " << tf_base_msg.getRotation().getX() << " y : " << tf_base_msg.getRotation().getY() << " z : " << tf_base_msg.getRotation().getZ() << " w : " << tf_base_msg.getRotation().getW() << std::endl;
-
+                
             
                 tf::StampedTransform base_st(t_base, ros::Time::now(), "t", "b_test");
-                // tf::StampedTransform base_st2(t_base2, ros::Time::now(), "b_test", "c_test");
+                
                 br_3.sendTransform(base_st);
-                // br_5.sendTransform(base_st2);
+                
 
                 std::cout << "this point 2" << std::endl;
             }
@@ -383,6 +280,7 @@ int main(int argc, char **argv)
                 tf::Transform ttttt;
                 ttttt.setOrigin(tf::Vector3(cam_optical2cam_link.getOrigin().getX(), cam_optical2cam_link.getOrigin().getY(), cam_optical2cam_link.getOrigin().getZ()));
                 ttttt.setRotation(tf::Quaternion(cam_optical2cam_link.getRotation().getX(), cam_optical2cam_link.getRotation().getY(), cam_optical2cam_link.getRotation().getZ(), cam_optical2cam_link.getRotation().getW()));
+                ttttt.getRotation().normalize();
                 tf::StampedTransform t_base_test(ttttt, ros::Time::now(), "base_link", "end");
                 br_4.sendTransform(t_base_test);
 
