@@ -1,0 +1,17 @@
+<!-- Update: 2020-02-03 --> 
+<!-- urdf --> 
+<robot name="cona">
+
+	<link name="base_link"/>
+	<link name="camera_link"/>
+
+	<joint name="robot2depth" type="fixed">
+		<parent link="base_link"/>
+		<child link="camera_link"/>
+		<origin xyz="0.016901 0.283791 -0.060497" rpy="0.049250 -0.063202 0.04673" />
+	</joint>
+
+ 
+ 
+
+</robot>        
