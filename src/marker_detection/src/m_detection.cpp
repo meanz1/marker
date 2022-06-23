@@ -25,6 +25,7 @@
 #include <tf/transform_datatypes.h>
 #include <deque>
 
+#include <pcl/visualization/cloud_viewer.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -49,6 +50,7 @@ tf::Transform tf_base_msg;
 
 std::mutex pcl_cloud_mtx;
 pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
+pcl::visualization::PCLVisualizer PCL_viewer("Cloud Viewer");
 
 tf::Vector3 cv_vector3d_to_tf_vector3_m(const cv::Mat &vec)
 {
@@ -147,87 +149,38 @@ void PCLcallback(const sensor_msgs::PointCloud2ConstPtr& msg)
 	}
 }
 
-void getMats(std::vector<std::vector<cv::Point3f>>& board_, std::vector<std::vector<cv::Point2f>>& corners_, cv::Mat& ref, cv::Mat& ob)
+void getMats(std::vector<std::vector<cv::Point3f>>& board_, std::vector<std::vector<cv::Point2f>>& corners_, std::vector<int>& ids_, cv::Mat& ref, cv::Mat& ob)
 {
-	bool draw = true;
-
 	pcl_cloud_mtx.lock();
 	pcl::PointCloud<pcl::PointXYZRGB> temp_pcl_cloud = pcl_cloud;
 	pcl_cloud_mtx.unlock();
 
-	std::vector<std::pair<cv::Point2f, cv::Point2f>> matching_points;
-
-	cv::Mat point(1, 3, CV_64FC1, cv::Scalar(0));
 	for(int i=0; i<(int)corners_.size(); i++)
 		for(int j=0; j<(int)corners_[i].size(); j++)
 		{
 			pcl::PointXYZRGB p = temp_pcl_cloud.at(corners_[i][j].x, corners_[i][j].y);
 			int corner_row = i/7;
 			int corner_col = i%7;
-			int board_idx = corner_col*5 + corner_row;
+			int board_idx = ids_[i];
 
 			if(isnan(p.x) || isnan(p.y) || isnan(p.z))
 			{
-				if(draw)
-					matching_points.push_back(std::pair<cv::Point2f, cv::Point2f>(
-						cv::Point2f(board_[board_idx][j].x, board_[board_idx][j].y),
-						cv::Point2f(board_[board_idx][j].x, board_[board_idx][j].y)
-					));
 				continue;
 			}
 
-			point.at<double>(0, 0) = p.x;
-			point.at<double>(0, 1) = p.y;
-			point.at<double>(0, 2) = p.z;
-			if(ob.empty()) ob = point.clone();
-			else ob.push_back(point.clone());
+			cv::Mat ob_point(1, 3, CV_64FC1, cv::Scalar(0));
+			ob_point.at<double>(0, 0) = p.x;
+			ob_point.at<double>(0, 1) = p.y;
+			ob_point.at<double>(0, 2) = p.z;
+			if(ob.empty()) ob = ob_point.clone();
+			else ob.push_back(ob_point.clone());
 
-			if(board_idx >= board_.size() || j >= board_[board_idx].size())
-			{
-				printf("board_idx: %d j: %d\n", board_idx, j);
-				continue;
-			}
-
-			point.at<double>(0, 0) = board_[board_idx][j].x;
-			point.at<double>(0, 1) = board_[board_idx][j].y;
-			point.at<double>(0, 2) = board_[board_idx][j].z;
-			if(ref.empty()) ref = point.clone();
-			else ref.push_back(point.clone());
-
-			if(draw)
-				matching_points.push_back(std::pair<cv::Point2f, cv::Point2f>(
-					cv::Point2f(p.x, p.y),
-					cv::Point2f(board_[board_idx][j].x, board_[board_idx][j].y)
-				));
-		}
-
-
-		if(draw)
-		{
-			float c_x = 100, c_y = 250;
-			float rate = 50.0;
-			cv::Mat plot(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
-			for(int i=0; i<(int)matching_points.size(); i+=4)
-			{
-				cv::Point2f draw_ref(c_x+rate*matching_points[i].second.x, c_y+rate*matching_points[i].second.y);
-				cv::Point2f draw_ob(c_x+rate*rate*matching_points[i].first.x, c_y+rate*matching_points[i].first.y);
-	
-				cv::circle(plot, draw_ref, 3, cv::Scalar(255, 0, 0));
-				cv::circle(plot, draw_ob, 3, cv::Scalar(0, 0, 255));
-				cv::line(plot, draw_ref, draw_ob, cv::Scalar(0, 255, 0), 1);
-			}
-			cv::imshow("plot", plot);
-
-			cv::Mat plot2(500, 500, CV_8UC3, cv::Scalar(255, 255, 255));
-			for(int i=0; i<(int)board_.size(); i++)
-				for(int j=0; j<(int)board_[i].size(); j++)
-				{
-					cv::circle(plot2, cv::Point2f(
-						250 + 300.0*board_[i][j].x, 250 + 300*board_[i][j].y), 
-						3, cv::Scalar(0, 0, 255)
-					);
-				}
-			cv::imshow("test_plot", plot2);
+			cv::Mat ref_point(1, 3, CV_64FC1, cv::Scalar(0));
+			ref_point.at<double>(0, 0) = board_[board_idx][j].x;
+			ref_point.at<double>(0, 1) = board_[board_idx][j].y;
+			ref_point.at<double>(0, 2) = board_[board_idx][j].z;
+			if(ref.empty()) ref = ref_point.clone();
+			else ref.push_back(ref_point.clone());
 		}
 }
 
@@ -269,6 +222,13 @@ void calcPose(cv::Mat& ref, cv::Mat& ob, cv::Mat& R_, cv::Mat& T_)
 	cv::Mat M = ob_zeroMean.t() * ref_zeroMean;
 	cv::SVD svd(M);
 	R_ = svd.vt.t() * svd.u.t();
+
+	if(cv::determinant(R_) < 0)
+	{
+		double data[9] {1, 0, 0, 0, 1, 0, 0, 0, -1};
+		R_ = svd.vt.t() * cv::Mat(3, 3, CV_64FC1, data) * svd.u.t();
+	}
+
 	T_ = ref_mean.t() - R_ * ob_mean.t();
 }
 
@@ -323,38 +283,38 @@ void pub_PointTF(cv::Mat& target, std::string frame, std::string prefix, tf::Tra
 	else ROS_WARN("Unknown target type");
 }
 
-std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>>& target, std::string from, std::string to, tf::TransformListener& ls_)
+std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>>& target, tf::StampedTransform& tf)
 {
-	tf::StampedTransform tf;
-	try
+	tf::Matrix3x3 tf_R(tf.getRotation());
+	tf::Vector3 tf_T(tf.getOrigin());
+	std::vector<std::vector<cv::Point3f>> output;
+	for(int i=0; i<(int)target.size(); i++)
 	{
-		ls_.lookupTransform(from, to, ros::Time(0), tf);
-	}
-	catch(...)
-	{
-		return std::vector<std::vector<cv::Point3f>>();
-	}
-
-	tf::Matrix3x3 base2marker_R(base2marker.getRotation());
-	tf::Vector3 base2marker_T(base2marker.getOrigin());
-	std::vector<std::vector<cv::Point3f>> tf_boardPoints;
-	for(int i=0; i<(int)board->objPoints.size(); i++)
-	{
-		tf_boardPoints.push_back(std::vector<cv::Point3f>());
-		for(int j=0; j<(int)board->objPoints[i].size(); j++)
+		output.push_back(std::vector<cv::Point3f>());
+		for(int j=0; j<(int)target[i].size(); j++)
 		{
-			tf::Vector3 p(board->objPoints[i][j].x, board->objPoints[i][j].y, board->objPoints[i][j].z);
-			tf::Vector3 tf_p = base2marker_R*p + base2marker_T;
-			tf_boardPoints[i].push_back(cv::Point3f(tf_p.getX(), tf_p.getY(), tf_p.getZ()));
+			tf::Vector3 p(target[i][j].x, target[i][j].y, target[i][j].z);
+			tf::Vector3 tf_p = tf_R*p + tf_T;
+			output[i].push_back(cv::Point3f(tf_p.getX(), tf_p.getY(), tf_p.getZ()));
 		}
 	}
 
+	return output;
+}
+std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>>& target, std::string from, std::string to, tf::TransformListener& ls_)
+{
+	tf::StampedTransform tf;
+	try{ ls_.lookupTransform(from, to, ros::Time(0), tf); }
+	catch(...) { return std::vector<std::vector<cv::Point3f>>(); }
+	return transform(target, tf);
 }
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "image_publisher");
     ros::NodeHandle nh;
+
+	PCL_viewer.addCoordinateSystem(0.1);
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.148, 0.015, dictionary);
@@ -364,21 +324,8 @@ int main(int argc, char **argv)
 	// tf::StampedTransform base2marker = create_stamped_transform(0.6, 0, -0.01, 0, -M_PI/2.0, 0, "base_link", "marker");
 	tf::StampedTransform base2marker = create_stamped_transform(0.482, -0.144, 0.77, 0, -0.663, 0, "base_link", "marker");
 
-	tf::Matrix3x3 base2marker_R(base2marker.getRotation());
-	tf::Vector3 base2marker_T(base2marker.getOrigin());
-	std::vector<std::vector<cv::Point3f>> tf_boardPoints;
-	for(int i=0; i<(int)board->objPoints.size(); i++)
-	{
-		tf_boardPoints.push_back(std::vector<cv::Point3f>());
-		for(int j=0; j<(int)board->objPoints[i].size(); j++)
-		{
-			tf::Vector3 p(board->objPoints[i][j].x, board->objPoints[i][j].y, board->objPoints[i][j].z);
-			tf::Vector3 tf_p = base2marker_R*p + base2marker_T;
-			tf_boardPoints[i].push_back(cv::Point3f(tf_p.getX(), tf_p.getY(), tf_p.getZ()));
-		}
-	}
+	std::vector<std::vector<cv::Point3f>> tf_boardPoints = transform(board->objPoints, base2marker);
 	
-
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub_image = it.subscribe("/camera/rgb/image_rect_color", 1, imagecallback);
 	ros::Subscriber sub_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 1, &PCLcallback);
@@ -389,7 +336,6 @@ int main(int argc, char **argv)
     std::deque<std::pair<cv::Point3d, cv::Point3d>> dq_xyzrpy;
 
     std::vector<int> ids;
-    std::vector<std::vector<cv::Point2f>> corners;
     std::vector<cv::Vec3d> rvecs, tvecs;
     cv::Vec3d rvec_board, tvec_board;
 
@@ -426,7 +372,8 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-
+		PCL_viewer.removeAllPointClouds();
+		PCL_viewer.removeCorrespondences();
 
 		base2marker.stamp_ = ros::Time::now();
 		br_1.sendTransform(base2marker);
@@ -444,6 +391,7 @@ int main(int argc, char **argv)
         frame.copyTo(frame_cp);
 
 		bool find_marker = false;
+		std::vector<std::vector<cv::Point2f>> corners;
 		cv::aruco::detectMarkers(frame, dictionary, corners, ids);
 
 		if(ids.size() <= 0 || pcl_cloud.empty())
@@ -459,27 +407,69 @@ int main(int argc, char **argv)
 		if (ids.size() > 0)
 		{
 			cv::Mat ob_points, ref_points;
-			getMats(tf_boardPoints, corners, ref_points, ob_points);
+			getMats(tf_boardPoints, corners, ids, ref_points, ob_points); //N x 3 data
 
 			pub_PointTF(ref_points, "base_link", "ref", br_1);
 			pub_PointTF(ob_points, "camera_rgb_optical_frame", "ob", br_1);
 
-
 			cv::Mat R, tvec_depth, rvec_depth;
-			calcPose(ref_points, ob_points, R, tvec_depth);
+			calcPose(ref_points, ob_points, R, tvec_depth); //ref_points(base_link) ob_poitns(cam)
 			cv::Rodrigues(R, rvec_depth);	
+
+
+
+			if(1)
+			{
+				cv::Mat result = R*ob_points.t();
+				result.row(0) += tvec_depth.at<double>(0, 0);
+				result.row(1) += tvec_depth.at<double>(0, 1);
+				result.row(2) += tvec_depth.at<double>(0, 2);
+				cv::Mat result_t = result.t();
+
+				pcl_cloud_mtx.lock();
+				pcl::PointCloud<pcl::PointXYZRGB>::Ptr temp_pcl_cloud = pcl_cloud.makeShared();
+				pcl_cloud_mtx.unlock();
+
+				PCL_viewer.addPointCloud(temp_pcl_cloud);
+
+				pcl::PointCloud<pcl::PointXYZ>::Ptr ob_PCL(new pcl::PointCloud<pcl::PointXYZ>());
+				for(int i=0; i<ob_points.rows; i++)
+					ob_PCL->push_back(pcl::PointXYZ(ob_points.at<double>(i, 0), ob_points.at<double>(i, 1), ob_points.at<double>(i, 2)));
+				PCL_viewer.addPointCloud(ob_PCL, "ob");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, "ob");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 5, "ob");
+
+				pcl::PointCloud<pcl::PointXYZ>::Ptr ref_PCL(new pcl::PointCloud<pcl::PointXYZ>());
+				for(int i=0; i<ref_points.rows; i++)
+					ref_PCL->push_back(pcl::PointXYZ(ref_points.at<double>(i, 0), ref_points.at<double>(i, 1), ref_points.at<double>(i, 2)));
+				PCL_viewer.addPointCloud(ref_PCL, "ref");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, "ref");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 5, "ref");
+
+				pcl::PointCloud<pcl::PointXYZ>::Ptr result_PCL(new pcl::PointCloud<pcl::PointXYZ>());
+				for(int i=0; i<result_t.rows; i++)
+					result_PCL->push_back(pcl::PointXYZ(result_t.at<double>(i, 0), result_t.at<double>(i, 1), result_t.at<double>(i, 2)));
+				PCL_viewer.addPointCloud(result_PCL, "result");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 1, 0, "result");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 5, "result");
+
+				std::vector<int> corrs;
+				for(int i=0; i<(int)ob_PCL->size(); i++)
+					corrs.push_back(i);
+				PCL_viewer.addCorrespondences<pcl::PointXYZ>(result_PCL, ref_PCL, corrs);	
+			}
 
 			// cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
 
-			int find_marker = cv::aruco::estimatePoseBoard(corners, ids, board, camMatrix, distCoeffs, rvec_board, tvec_board);
+//			int find_marker = cv::aruco::estimatePoseBoard(corners, ids, board, camMatrix, distCoeffs, rvec_board, tvec_board);
 
-			if (find_marker > 0)
-			{
+//			if (find_marker > 0)
+//			{
 //				cv::aruco::drawAxis(frame_cp, camMatrix, distCoeffs, rvec_board, tvec_board, 0.01);
-				cv::aruco::drawAxis(frame_cp, camMatrix, distCoeffs, rvec_depth, tvec_depth, 0.01);
-			}
+//				cv::aruco::drawAxis(frame_cp, camMatrix, distCoeffs, rvec_depth, tvec_depth, 0.01);
+//			}
 
-			if(1)
+			if(0)
 			{
 				for(int i=0; i<(int)board->objPoints.size(); i++)
 				{
@@ -607,6 +597,8 @@ int main(int argc, char **argv)
 		}
 
         ros::spinOnce();
+		PCL_viewer.spinOnce();
+
         loop_rate.sleep();
     }
 
