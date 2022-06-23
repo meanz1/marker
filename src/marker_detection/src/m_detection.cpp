@@ -30,23 +30,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
-bool cout_flag = false;
-
 cv::Mat frame;
 bool flag = false;
-tf::Quaternion q_;
-// marker2cam (matrix)
-tf::Matrix3x3 R_cam_link;
-tf::Vector3 T_cam_link;
-
-tf::Matrix3x3 R_cam_link2;
-tf::Vector3 T_cam_link2;
-
-// adverse
-tf::Matrix3x3 R_cam_link_ad;
-tf::Vector3 T_cam_link_ad;
-tf::Transform tf_base_msg;
-// tf::StampedTransform base_st;
 
 std::mutex pcl_cloud_mtx;
 pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
@@ -122,7 +107,7 @@ void imagecallback(const sensor_msgs::ImageConstPtr& msg)
         cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
         frame = cv_ptr->image;
         if (frame.empty())
-            std::cout << "frame empty" << std::endl;
+            ROS_ERROR("frame empty");
 
         flag = true;
     }
@@ -322,7 +307,8 @@ int main(int argc, char **argv)
 
 	// tf::StampedTransform base2marker = create_stamped_transform(0.77, -0.505, 0, 0, 0, 0, "base_link", "marker");
 	// tf::StampedTransform base2marker = create_stamped_transform(0.6, 0, -0.01, 0, -M_PI/2.0, 0, "base_link", "marker");
-	tf::StampedTransform base2marker = create_stamped_transform(0.482, -0.144, 0.77, 0, -0.663, 0, "base_link", "marker");
+	// tf::StampedTransform base2marker = create_stamped_transform(0.482, -0.144, 0.77, 0, -0.663, 0, "base_link", "marker");
+	tf::StampedTransform base2marker = create_stamped_transform(0.85, -0.31, 0.675, 0, -0.95, 0, "base_link", "marker");
 
 	std::vector<std::vector<cv::Point3f>> tf_boardPoints = transform(board->objPoints, base2marker);
 	
@@ -336,12 +322,8 @@ int main(int argc, char **argv)
     std::deque<std::pair<cv::Point3d, cv::Point3d>> dq_xyzrpy;
 
     std::vector<int> ids;
-    std::vector<cv::Vec3d> rvecs, tvecs;
-    cv::Vec3d rvec_board, tvec_board;
 
     cv::Mat camMatrix, distCoeffs;
-
-    tf::Transform transform;
 
     tf::TransformBroadcaster br_1;
     tf::TransformBroadcaster br_2;
@@ -378,7 +360,6 @@ int main(int argc, char **argv)
 		base2marker.stamp_ = ros::Time::now();
 		br_1.sendTransform(base2marker);
 
-
 		if(frame.empty() || flag == false)
 		{
 			ROS_ERROR("frame is empty");
@@ -414,9 +395,12 @@ int main(int argc, char **argv)
 
 			cv::Mat R, tvec_depth, rvec_depth;
 			calcPose(ref_points, ob_points, R, tvec_depth); //ref_points(base_link) ob_poitns(cam)
-			cv::Rodrigues(R, rvec_depth);	
+			cv::Rodrigues(R, rvec_depth);
 
-
+			tf::StampedTransform result_tf = create_stamped_transform(tvec_depth, rvec_depth, "base_link", "cam");
+			
+			if(!rvec_depth.empty() && !tvec_depth.empty())
+				br_1.sendTransform(result_tf);
 
 			if(1)
 			{
@@ -459,16 +443,6 @@ int main(int argc, char **argv)
 				PCL_viewer.addCorrespondences<pcl::PointXYZ>(result_PCL, ref_PCL, corrs);	
 			}
 
-			// cv::aruco::drawDetectedMarkers(frame_cp, corners, ids);
-
-//			int find_marker = cv::aruco::estimatePoseBoard(corners, ids, board, camMatrix, distCoeffs, rvec_board, tvec_board);
-
-//			if (find_marker > 0)
-//			{
-//				cv::aruco::drawAxis(frame_cp, camMatrix, distCoeffs, rvec_board, tvec_board, 0.01);
-//				cv::aruco::drawAxis(frame_cp, camMatrix, distCoeffs, rvec_depth, tvec_depth, 0.01);
-//			}
-
 			if(0)
 			{
 				for(int i=0; i<(int)board->objPoints.size(); i++)
@@ -484,16 +458,6 @@ int main(int argc, char **argv)
 				}
 			}
 		}
-
-		tf::Transform cam2marker = create_transform(cv::Mat(tvec_board), cv::Mat(rvec_board));
-		tf::Transform marker2cam = cam2marker.inverse();
-
-		// tf::StampedTransform tf_marker2cam(marker2cam, ros::Time::now(), "marker", "cam");
-		tf::StampedTransform tf_marker2cam(marker2cam, ros::Time::now(), "marker", "cam");
-		br_1.sendTransform(tf_marker2cam);
-
-		tf::StampedTransform tf_cam_msg2;
-		tf::StampedTransform tf_base2camera_link;
 
 		if(0 && listener_cam_link.waitForTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), ros::Duration(1.0)))
 		{
@@ -511,7 +475,7 @@ int main(int argc, char **argv)
 		}
 		else br_1.sendTransform(create_stamped_transform(-0.045, 0.0, 0.0, 1.570796, -1.570796, 0.000000, "cam", "est_camera_link"));
 
-		if(1)
+		if(0)
 		{
 			std::string from = "/est_camera_link", to = "/marker";
 			// std::string from = "/est_camera_link", to = "/camera_link";
@@ -528,13 +492,9 @@ int main(int argc, char **argv)
 			}
 		}
 
-		// if(listener.waitForTransform("/base_link", "/camera_link", ros::Time(0), ros::Duration(1.0)))
-		// if(listener.waitForTransform("/camera_link", "/est_camera_link", ros::Time(0), ros::Duration(1.0)))
 		if(listener.waitForTransform("/base_link", "/est_camera_link", ros::Time(0), ros::Duration(1.0)))
 		{
 			tf::StampedTransform tf_b2d;
-			// listener.lookupTransform("/base_link", "/camera_link", ros::Time(0), tf_b2d);
-			// listener.lookupTransform("/camera_link", "/est_camera_link", ros::Time(0), tf_b2d);
 			listener.lookupTransform("/base_link", "/est_camera_link", ros::Time(0), tf_b2d);
 
 			tf::Matrix3x3 m(tf_b2d.getRotation());
@@ -584,17 +544,6 @@ int main(int argc, char **argv)
 		cv::imshow("out", resized_frame_cp);
 		if (cv::waitKey(1) == 27)
 			break;
-
-		if(cout_flag)
-		{
-			for (int i = 0; i < ids.size(); i++)
-			{
-				for (int j = 0; j < 4; j++)
-				{
-					std::cout << "[" << i << "] : " << corners[i][j] << std::endl;
-				}
-			}
-		}
 
         ros::spinOnce();
 		PCL_viewer.spinOnce();
