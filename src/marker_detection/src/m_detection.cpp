@@ -33,6 +33,9 @@
 cv::Mat frame;
 bool flag = false;
 
+ros::Publisher pubResultPointCloud, pubinitPointCloud;
+
+
 std::mutex pcl_cloud_mtx;
 pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
 pcl::visualization::PCLVisualizer PCL_viewer("Cloud Viewer");
@@ -98,7 +101,7 @@ tf::StampedTransform create_stamped_transform(double x, double y, double z, doub
     return transform;
 }
 
-void imagecallback(const sensor_msgs::ImageConstPtr& msg)
+void image_callback(const sensor_msgs::ImageConstPtr& msg)
 {
     cv_bridge::CvImagePtr cv_ptr;
     try
@@ -117,12 +120,19 @@ void imagecallback(const sensor_msgs::ImageConstPtr& msg)
     }
 }
 
-void PCLcallback(const sensor_msgs::PointCloud2ConstPtr& msg)
+void PCL_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
 {
 	try
 	{
+printf("PCL: %d %d\n", (int)msg->width, (int)msg->height);
+
 		pcl::PointCloud<pcl::PointXYZRGB> temp_pcl_cloud;
 		pcl::fromROSMsg(*msg, temp_pcl_cloud);
+
+		sensor_msgs::PointCloud2 temp  = *msg;
+		temp.header.frame_id = "cam";
+		temp.header.stamp = ros::Time::now();
+		pubResultPointCloud.publish(temp);
 
 		pcl_cloud_mtx.lock();
 		pcl_cloud.swap(temp_pcl_cloud);
@@ -134,6 +144,24 @@ void PCLcallback(const sensor_msgs::PointCloud2ConstPtr& msg)
 	}
 }
 
+void points_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
+{
+	try
+	{
+printf("points: %d %d\n", (int)msg->width, (int)msg->height);
+
+		sensor_msgs::PointCloud2 temp  = *msg;
+		temp.header.frame_id = "cam";
+		temp.header.stamp = ros::Time::now();
+		pubinitPointCloud.publish(temp);
+	}
+	catch(const std::exception& e)
+	{
+		std::cerr << e.what() << '\n';
+	}
+}
+
+
 void getMats(std::vector<std::vector<cv::Point3f>>& board_, std::vector<std::vector<cv::Point2f>>& corners_, std::vector<int>& ids_, cv::Mat& ref, cv::Mat& ob)
 {
 	pcl_cloud_mtx.lock();
@@ -143,15 +171,14 @@ void getMats(std::vector<std::vector<cv::Point3f>>& board_, std::vector<std::vec
 	for(int i=0; i<(int)corners_.size(); i++)
 		for(int j=0; j<(int)corners_[i].size(); j++)
 		{
+			if(corners_[i][j].x >= temp_pcl_cloud.width || corners_[i][j].y >= temp_pcl_cloud.height)
+				continue;
+
 			pcl::PointXYZRGB p = temp_pcl_cloud.at(corners_[i][j].x, corners_[i][j].y);
-			int corner_row = i/7;
-			int corner_col = i%7;
 			int board_idx = ids_[i];
 
 			if(isnan(p.x) || isnan(p.y) || isnan(p.z))
-			{
 				continue;
-			}
 
 			cv::Mat ob_point(1, 3, CV_64FC1, cv::Scalar(0));
 			ob_point.at<double>(0, 0) = p.x;
@@ -302,22 +329,26 @@ int main(int argc, char **argv)
 	PCL_viewer.addCoordinateSystem(0.1);
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-    // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.148, 0.015, dictionary);
-    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.0417, 0.0056, dictionary);
+    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.148, 0.015, dictionary);
+    // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.0417, 0.0056, dictionary);
 
-	// tf::StampedTransform base2marker = create_stamped_transform(0.77, -0.505, 0, 0, 0, 0, "base_link", "marker");
+	tf::StampedTransform base2marker = create_stamped_transform(0.77, -0.515, 0, 0, 0, 0, "base_link", "marker");
 	// tf::StampedTransform base2marker = create_stamped_transform(0.6, 0, -0.01, 0, -M_PI/2.0, 0, "base_link", "marker");
 	// tf::StampedTransform base2marker = create_stamped_transform(0.482, -0.144, 0.77, 0, -0.663, 0, "base_link", "marker");
-	tf::StampedTransform base2marker = create_stamped_transform(0.85, -0.31, 0.675, 0, -0.95, 0, "base_link", "marker");
+	// tf::StampedTransform base2marker = create_stamped_transform(0.85, -0.31, 0.675, 0, -0.95, 0, "base_link", "marker");
 
 	std::vector<std::vector<cv::Point3f>> tf_boardPoints = transform(board->objPoints, base2marker);
 	
     image_transport::ImageTransport it(nh);
-    image_transport::Subscriber sub_image = it.subscribe("/camera/rgb/image_rect_color", 1, imagecallback);
-	ros::Subscriber sub_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 1, &PCLcallback);
+    image_transport::Subscriber sub_image = it.subscribe("/camera/rgb/image_rect_color", 1, image_callback);
+	ros::Subscriber sub_pcl_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 1, &PCL_callback);
+	ros::Subscriber sub_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 1, &points_callback);
 
 	std::string package_path = ros::package::getPath("marker_detection");
     std::string filename = package_path + "/src/cam_int";
+
+	pubResultPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/resultPoints", 1);
+	pubinitPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/initPoints", 1);
 
     std::deque<std::pair<cv::Point3d, cv::Point3d>> dq_xyzrpy;
 
@@ -473,7 +504,16 @@ int main(int argc, char **argv)
 
 				ROS_WARN("%lf %lf %lf, %lf %lf %lf", base_st.getOrigin().getX(), base_st.getOrigin().getY(), base_st.getOrigin().getZ(), roll, pitch, yaw);
 		}
-		else br_1.sendTransform(create_stamped_transform(-0.045, 0.0, 0.0, 1.570796, -1.570796, 0.000000, "cam", "est_camera_link"));
+		else 
+		{
+			tf::StampedTransform tf_o2l = create_stamped_transform(-0.045, 0.0, 0.0, 1.570796, -1.570796, 0.000000, "cam", "est_camera_link");
+			br_1.sendTransform(tf_o2l);
+
+			tf::StampedTransform tf_l2o(tf_o2l.inverse(), ros::Time::now(), "camera_link", "camera_rgb_optical_frame");
+			br_1.sendTransform(tf_l2o);
+
+			
+		}
 
 		if(0)
 		{
