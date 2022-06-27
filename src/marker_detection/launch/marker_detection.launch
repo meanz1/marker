@@ -1,6 +1,24 @@
 <launch>
-	<param name="robot_description" textfile="$(find marker_detection)/urdf/cona.urdf" />
-	<node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" /> 
+	<!-- <param name="robot_description" textfile="$(find marker_detection)/urdf/cona.urdf" /> -->
+	<!-- <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />  -->
 
     <node pkg="marker_detection" type="marker_detection" name="marker_detection" output="screen"/>
+		<param name="board_x" type="int" value="5"/>
+		<param name="board_y" type="int" value="7"/>
+		<param name="board_marker_length" type="double" value="0.148"/>
+		<param name="board_space_length" type="double" value="0.015"/>
+		<param name="b2m_x" type="double" value="0.77"/>
+		<param name="b2m_y" type="double" value="-0.515"/>
+		<param name="b2m_z" type="double" value="0"/>
+		<param name="b2m_r" type="double" value="0"/>
+		<param name="b2m_p" type="double" value="0"/>
+		<param name="b2m_yaw" type="double" value="0"/>
+
+		<param name="sub_image_name" type="string" value="/camera/rgb/image_rect_color"/>
+		<param name="sub_pc_image_name" type="string" value="/camera/depth_registered/points"/>
+
+		<param name="cam_intrinsic_file" type="string" value="/home/cona/marker/src/marker_detection/src/cam_int"/>
+
+		<param name="save_output_file" type="string" value="/hoem/cona/marker/src/marker_detection/src/value.txt"/>
+	</node> 
 </launch>

@@ -325,14 +325,47 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "image_publisher");
     ros::NodeHandle nh;
+    ros::NodeHandle nh_param("~");
 
-	PCL_viewer.addCoordinateSystem(0.1);
+    int _board_x;
+    int _board_y;
+    double _board_marker_length;
+    double _board_space_length;
+    double _b2m_x;
+    double _b2m_y;
+    double _b2m_z;
+    double _b2m_r;
+    double _b2m_p;
+    double _b2m_yaw;
+
+    std::string _sub_image_name;
+    std::string _sub_pc_image_name;
+    std::string _cam_intrinsic_file;
+    std::string _save_output_file;
+
+    nh_param.getParam("board_x", _board_x);
+    nh_param.getParam("board_y", _board_y);
+    nh_param.getParam("board_marker_length", _board_marker_length);
+    nh_param.getParam("board_space_length", _board_space_length);
+    nh_param.getParam("b2m_x", _b2m_x);
+    nh_param.getParam("b2m_y", _b2m_y);
+    nh_param.getParam("b2m_z", _b2m_z);
+    nh_param.getParam("b2m_r", _b2m_r);
+    nh_param.getParam("b2m_p", _b2m_p);
+    nh_param.getParam("b2m_yaw", _b2m_yaw);
+
+    nh_param.getParam("sub_image_name", _sub_image_name);
+    nh_param.getParam("sub_pc_image_name", _sub_pc_image_name);
+    nh_param.getParam("cam_intrinsic_file", _cam_intrinsic_file);
+    nh_param.getParam("save_output_file", _save_output_file);
+
+    PCL_viewer.addCoordinateSystem(0.1);
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.148, 0.015, dictionary);
+    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(_board_x, _board_y, _board_marker_length, _board_space_length, dictionary);
     // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.0417, 0.0056, dictionary);
 
-	tf::StampedTransform base2marker = create_stamped_transform(0.77, -0.515, 0, 0, 0, 0, "base_link", "marker");
+	tf::StampedTransform base2marker = create_stamped_transform(_b2m_x, _b2m_y, _b2m_z, _b2m_r, _b2m_p, _b2m_yaw, "base_link", "marker");
 	// tf::StampedTransform base2marker = create_stamped_transform(0.6, 0, -0.01, 0, -M_PI/2.0, 0, "base_link", "marker");
 	// tf::StampedTransform base2marker = create_stamped_transform(0.482, -0.144, 0.77, 0, -0.663, 0, "base_link", "marker");
 	// tf::StampedTransform base2marker = create_stamped_transform(0.85, -0.31, 0.675, 0, -0.95, 0, "base_link", "marker");
@@ -340,15 +373,15 @@ int main(int argc, char **argv)
 	std::vector<std::vector<cv::Point3f>> tf_boardPoints = transform(board->objPoints, base2marker);
 	
     image_transport::ImageTransport it(nh);
-    image_transport::Subscriber sub_image = it.subscribe("/camera/rgb/image_rect_color", 1, image_callback);
-	ros::Subscriber sub_pcl_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth_registered/points", 1, &PCL_callback);
-	ros::Subscriber sub_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 1, &points_callback);
+    image_transport::Subscriber sub_image = it.subscribe(_sub_image_name, 1, image_callback);
+	ros::Subscriber sub_pcl_points = nh.subscribe<sensor_msgs::PointCloud2>(_sub_pc_image_name, 1, &PCL_callback);
+	// ros::Subscriber sub_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 1, &points_callback);
 
 	std::string package_path = ros::package::getPath("marker_detection");
-    std::string filename = package_path + "/src/cam_int";
-
-	pubResultPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/resultPoints", 1);
-	pubinitPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/initPoints", 1);
+    // std::string filename = package_path + "/src/cam_int";
+    std::string filename = _cam_intrinsic_file;
+    pubResultPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/resultPoints", 1);
+    pubinitPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/initPoints", 1);
 
     std::deque<std::pair<cv::Point3d, cv::Point3d>> dq_xyzrpy;
 
@@ -552,8 +585,8 @@ int main(int argc, char **argv)
 			if (dq_xyzrpy.size() == 10)
 			{
 				std::ofstream value_text;
-				value_text.open(package_path + "/src/value.txt");
-
+				// value_text.open(package_path + "/src/value.txt");
+                value_text.open(_save_output_file);
 				cv::Point3d t_sum(0, 0, 0);
 				cv::Point3d t_ave(0, 0, 0);
 				cv::Point3d r_sum(0, 0, 0);
