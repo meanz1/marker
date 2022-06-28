@@ -41,94 +41,94 @@ pcl::visualization::PCLVisualizer PCL_viewer("Cloud Viewer");
 
 tf::Vector3 cv_vector3d_to_tf_vector3_m(const cv::Mat &vec)
 {
-    return {vec.at<double>(0, 0), vec.at<double>(1, 0), vec.at<double>(2, 0)};
+	return {vec.at<double>(0, 0), vec.at<double>(1, 0), vec.at<double>(2, 0)};
 }
 
 tf::Quaternion cv_vector3d_to_tf_quaternion_m(const cv::Mat &rvec)
 {
 	tf::Quaternion q;
 
-    cv::Mat rotation_mat;
-    auto ax = rvec.at<double>(0, 0), ay = rvec.at<double>(1, 0), az = rvec.at<double>(2, 0);
-    auto angle = sqrt(ax * ax + ay * ay + az * az);
-    auto cosa = cos(angle * 0.5);
-    auto sina = sin(angle * 0.5);
-    auto qx = ax * sina / angle;
-    auto qy = ay * sina / angle;
-    auto qz = az * sina / angle;
-    auto qw = cosa;
+	cv::Mat rotation_mat;
+	auto ax = rvec.at<double>(0, 0), ay = rvec.at<double>(1, 0), az = rvec.at<double>(2, 0);
+	auto angle = sqrt(ax * ax + ay * ay + az * az);
+	auto cosa = cos(angle * 0.5);
+	auto sina = sin(angle * 0.5);
+	auto qx = ax * sina / angle;
+	auto qy = ay * sina / angle;
+	auto qz = az * sina / angle;
+	auto qw = cosa;
 
-    q.setValue(qx, qy, qz, qw);
-    return q;
+	q.setValue(qx, qy, qz, qw);
+	return q;
 }
 
 tf::Transform create_transform(const cv::Mat &tvec, const cv::Mat &rvec)
 {
-    tf::Transform transform;
-    transform.setOrigin(cv_vector3d_to_tf_vector3_m(tvec));
-    transform.setRotation(cv_vector3d_to_tf_quaternion_m(rvec));
-    return transform;
+	tf::Transform transform;
+	transform.setOrigin(cv_vector3d_to_tf_vector3_m(tvec));
+	transform.setRotation(cv_vector3d_to_tf_quaternion_m(rvec));
+	return transform;
 }
 
 tf::StampedTransform create_stamped_transform(const cv::Mat &tvec, const cv::Mat &rvec, std::string frame_id, std::string child_frame_id)
 {
-    tf::StampedTransform transform;
-    transform.setOrigin(cv_vector3d_to_tf_vector3_m(tvec));
-    transform.setRotation(cv_vector3d_to_tf_quaternion_m(rvec));
+	tf::StampedTransform transform;
+	transform.setOrigin(cv_vector3d_to_tf_vector3_m(tvec));
+	transform.setRotation(cv_vector3d_to_tf_quaternion_m(rvec));
 
 	transform.stamp_ = ros::Time::now();
 	transform.frame_id_ = frame_id;
 	transform.child_frame_id_ = child_frame_id;
-	
-    return transform;
+
+	return transform;
 }
 
-tf::StampedTransform create_stamped_transform(double x, double y, double z, double r, double p, double yaw, 
-		std::string frame_id, std::string child_frame_id)
+tf::StampedTransform create_stamped_transform(double x, double y, double z, double r, double p, double yaw,
+											  std::string frame_id, std::string child_frame_id)
 {
 	tf::Quaternion q;
 	q.setRPY(r, p, yaw);
 
-    tf::StampedTransform transform;
-    transform.setOrigin(tf::Vector3(x, y, z));
-    transform.setRotation(q);
+	tf::StampedTransform transform;
+	transform.setOrigin(tf::Vector3(x, y, z));
+	transform.setRotation(q);
 
 	transform.stamp_ = ros::Time::now();
 	transform.frame_id_ = frame_id;
 	transform.child_frame_id_ = child_frame_id;
-	
-    return transform;
+
+	return transform;
 }
 
-void image_callback(const sensor_msgs::ImageConstPtr& msg)
+void image_callback(const sensor_msgs::ImageConstPtr &msg)
 {
-    cv_bridge::CvImagePtr cv_ptr;
-    try
-    {
-        // ROS_INFO("Size : %d %d", msg->width, msg->height);
-        cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
-        frame = cv_ptr->image;
-        if (frame.empty())
-            ROS_ERROR("frame empty");
+	cv_bridge::CvImagePtr cv_ptr;
+	try
+	{
+		// ROS_INFO("Size : %d %d", msg->width, msg->height);
+		cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+		frame = cv_ptr->image;
+		if (frame.empty())
+			ROS_ERROR("frame empty");
 
-        flag = true;
-    }
-    catch (cv_bridge::Exception &e)
-    {
-        ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
-    }
+		flag = true;
+	}
+	catch (cv_bridge::Exception &e)
+	{
+		ROS_ERROR("Could not convert from '%s' to 'bgr8'.", msg->encoding.c_str());
+	}
 }
 
-void PCL_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
+void PCL_callback(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	try
 	{
-printf("PCL: %d %d\n", (int)msg->width, (int)msg->height);
+		printf("PCL: %d %d\n", (int)msg->width, (int)msg->height);
 
 		pcl::PointCloud<pcl::PointXYZRGB> temp_pcl_cloud;
 		pcl::fromROSMsg(*msg, temp_pcl_cloud);
 
-		sensor_msgs::PointCloud2 temp  = *msg;
+		sensor_msgs::PointCloud2 temp = *msg;
 		temp.header.frame_id = "cam";
 		temp.header.stamp = ros::Time::now();
 		pubResultPointCloud.publish(temp);
@@ -137,65 +137,68 @@ printf("PCL: %d %d\n", (int)msg->width, (int)msg->height);
 		pcl_cloud.swap(temp_pcl_cloud);
 		pcl_cloud_mtx.unlock();
 	}
-	catch(const std::exception& e)
+	catch (const std::exception &e)
 	{
 		std::cerr << e.what() << '\n';
 	}
 }
 
-void points_callback(const sensor_msgs::PointCloud2ConstPtr& msg)
+void points_callback(const sensor_msgs::PointCloud2ConstPtr &msg)
 {
 	try
 	{
-printf("points: %d %d\n", (int)msg->width, (int)msg->height);
+		printf("points: %d %d\n", (int)msg->width, (int)msg->height);
 
-		sensor_msgs::PointCloud2 temp  = *msg;
+		sensor_msgs::PointCloud2 temp = *msg;
 		temp.header.frame_id = "cam";
 		temp.header.stamp = ros::Time::now();
 		pubinitPointCloud.publish(temp);
 	}
-	catch(const std::exception& e)
+	catch (const std::exception &e)
 	{
 		std::cerr << e.what() << '\n';
 	}
 }
 
-
-void getMats(std::vector<std::vector<cv::Point3f>>& board_, std::vector<std::vector<cv::Point2f>>& corners_, std::vector<int>& ids_, cv::Mat& ref, cv::Mat& ob)
+void getMats(std::vector<std::vector<cv::Point3f>> &board_, std::vector<std::vector<cv::Point2f>> &corners_, std::vector<int> &ids_, cv::Mat &ref, cv::Mat &ob)
 {
 	pcl_cloud_mtx.lock();
 	pcl::PointCloud<pcl::PointXYZRGB> temp_pcl_cloud = pcl_cloud;
 	pcl_cloud_mtx.unlock();
 
-	for(int i=0; i<(int)corners_.size(); i++)
-		for(int j=0; j<(int)corners_[i].size(); j++)
+	for (int i = 0; i < (int)corners_.size(); i++)
+		for (int j = 0; j < (int)corners_[i].size(); j++)
 		{
-			if(corners_[i][j].x >= temp_pcl_cloud.width || corners_[i][j].y >= temp_pcl_cloud.height)
+			if (corners_[i][j].x >= temp_pcl_cloud.width || corners_[i][j].y >= temp_pcl_cloud.height)
 				continue;
 
 			pcl::PointXYZRGB p = temp_pcl_cloud.at(corners_[i][j].x, corners_[i][j].y);
 			int board_idx = ids_[i];
 
-			if(isnan(p.x) || isnan(p.y) || isnan(p.z))
+			if (isnan(p.x) || isnan(p.y) || isnan(p.z))
 				continue;
 
 			cv::Mat ob_point(1, 3, CV_64FC1, cv::Scalar(0));
 			ob_point.at<double>(0, 0) = p.x;
 			ob_point.at<double>(0, 1) = p.y;
 			ob_point.at<double>(0, 2) = p.z;
-			if(ob.empty()) ob = ob_point.clone();
-			else ob.push_back(ob_point.clone());
+			if (ob.empty())
+				ob = ob_point.clone();
+			else
+				ob.push_back(ob_point.clone());
 
 			cv::Mat ref_point(1, 3, CV_64FC1, cv::Scalar(0));
 			ref_point.at<double>(0, 0) = board_[board_idx][j].x;
 			ref_point.at<double>(0, 1) = board_[board_idx][j].y;
 			ref_point.at<double>(0, 2) = board_[board_idx][j].z;
-			if(ref.empty()) ref = ref_point.clone();
-			else ref.push_back(ref_point.clone());
+			if (ref.empty())
+				ref = ref_point.clone();
+			else
+				ref.push_back(ref_point.clone());
 		}
 }
 
-cv::Mat getZeroMean(cv::Mat& input, cv::Mat& mean)
+cv::Mat getZeroMean(cv::Mat &input, cv::Mat &mean)
 {
 	int size = input.rows;
 	int dimension = input.cols;
@@ -203,20 +206,20 @@ cv::Mat getZeroMean(cv::Mat& input, cv::Mat& mean)
 	cv::Mat output = input.clone();
 
 	mean = cv::Mat(1, dimension, input.type(), cv::Scalar(0));
-	for(int i=0; i<size; i++)
+	for (int i = 0; i < size; i++)
 		mean += input.row(i);
 
 	mean /= (double)size;
 
-	for(int i=0; i<dimension; i++)
+	for (int i = 0; i < dimension; i++)
 		output.col(i) -= mean.at<double>(0, i);
 
 	return output;
 }
 
-void calcPose(cv::Mat& ref, cv::Mat& ob, cv::Mat& R_, cv::Mat& T_)
+void calcPose(cv::Mat &ref, cv::Mat &ob, cv::Mat &R_, cv::Mat &T_)
 {
-	if(ref.size() != ob.size())
+	if (ref.size() != ob.size())
 	{
 		ROS_ERROR("ref and ob size are not same");
 		return;
@@ -224,196 +227,200 @@ void calcPose(cv::Mat& ref, cv::Mat& ob, cv::Mat& R_, cv::Mat& T_)
 
 	cv::Mat output;
 
-	//zero mean
+	// zero mean
 	cv::Mat ref_mean, ob_mean;
 	cv::Mat ref_zeroMean = getZeroMean(ref, ref_mean);
 	cv::Mat ob_zeroMean = getZeroMean(ob, ob_mean);
 
-	//calc pose
+	// calc pose
 	cv::Mat M = ob_zeroMean.t() * ref_zeroMean;
 	cv::SVD svd(M);
 	R_ = svd.vt.t() * svd.u.t();
 
-	if(cv::determinant(R_) < 0)
+	if (cv::determinant(R_) < 0)
 	{
-		double data[9] {1, 0, 0, 0, 1, 0, 0, 0, -1};
+		double data[9]{1, 0, 0, 0, 1, 0, 0, 0, -1};
 		R_ = svd.vt.t() * cv::Mat(3, 3, CV_64FC1, data) * svd.u.t();
 	}
 
 	T_ = ref_mean.t() - R_ * ob_mean.t();
 }
 
-void pub_PointTF(std::vector<std::vector<cv::Point3f>>& target, std::string frame, std::string prefix, tf::TransformBroadcaster& br_)
+void pub_PointTF(std::vector<std::vector<cv::Point3f>> &target, std::string frame, std::string prefix, tf::TransformBroadcaster &br_)
 {
 	double r_ = 0, p_ = 0, y_ = 0;
-	for(int i=0; i<(int)target.size(); i++)
+	for (int i = 0; i < (int)target.size(); i++)
 	{
-		for(int j=0; j<(int)target[i].size(); j++)
+		for (int j = 0; j < (int)target[i].size(); j++)
 		{
 			tf::StampedTransform cam2aruco = create_stamped_transform(
-				target[i][j].x, target[i][j].y, target[i][j].z, 
-				r_, p_, y_, 
-				frame, cv::format("%s_%02d_%02d", prefix.c_str(), i, j)
-			);
+				target[i][j].x, target[i][j].y, target[i][j].z,
+				r_, p_, y_,
+				frame, cv::format("%s_%02d_%02d", prefix.c_str(), i, j));
 
 			br_.sendTransform(cam2aruco);
 		}
 	}
 }
 
-void pub_PointTF(cv::Mat& target, std::string frame, std::string prefix, tf::TransformBroadcaster& br_)
+void pub_PointTF(cv::Mat &target, std::string frame, std::string prefix, tf::TransformBroadcaster &br_)
 {
 	double r_ = 0, p_ = 0, y_ = 0;
 
-	if(target.cols == 3)
+	if (target.cols == 3)
 	{
-		for(int i=0; i<(int)target.rows; i++)
+		for (int i = 0; i < (int)target.rows; i++)
 		{
 			tf::StampedTransform cam2aruco = create_stamped_transform(
-				target.at<double>(i, 0), target.at<double>(i, 1), target.at<double>(i, 2), 
-				r_, p_, y_, 
-				frame, cv::format("%s_%03d", prefix.c_str(), i)
-			);
+				target.at<double>(i, 0), target.at<double>(i, 1), target.at<double>(i, 2),
+				r_, p_, y_,
+				frame, cv::format("%s_%03d", prefix.c_str(), i));
 
 			br_.sendTransform(cam2aruco);
 		}
 	}
-	else if(target.rows == 3)
+	else if (target.rows == 3)
 	{
-		for(int i=0; i<(int)target.cols; i++)
+		for (int i = 0; i < (int)target.cols; i++)
 		{
 			tf::StampedTransform cam2aruco = create_stamped_transform(
-				target.at<double>(0, i), target.at<double>(1, i), target.at<double>(2, i), 
-				r_, p_, y_, 
-				frame, cv::format("%s_%d", prefix.c_str(), i)
-			);
+				target.at<double>(0, i), target.at<double>(1, i), target.at<double>(2, i),
+				r_, p_, y_,
+				frame, cv::format("%s_%d", prefix.c_str(), i));
 
 			br_.sendTransform(cam2aruco);
 		}
 	}
-	else ROS_WARN("Unknown target type");
+	else
+		ROS_WARN("Unknown target type");
 }
 
-std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>>& target, tf::StampedTransform& tf)
+std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>> &target, tf::StampedTransform &tf)
 {
 	tf::Matrix3x3 tf_R(tf.getRotation());
 	tf::Vector3 tf_T(tf.getOrigin());
 	std::vector<std::vector<cv::Point3f>> output;
-	for(int i=0; i<(int)target.size(); i++)
+	for (int i = 0; i < (int)target.size(); i++)
 	{
 		output.push_back(std::vector<cv::Point3f>());
-		for(int j=0; j<(int)target[i].size(); j++)
+		for (int j = 0; j < (int)target[i].size(); j++)
 		{
 			tf::Vector3 p(target[i][j].x, target[i][j].y, target[i][j].z);
-			tf::Vector3 tf_p = tf_R*p + tf_T;
+			tf::Vector3 tf_p = tf_R * p + tf_T;
 			output[i].push_back(cv::Point3f(tf_p.getX(), tf_p.getY(), tf_p.getZ()));
 		}
 	}
 
 	return output;
 }
-std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>>& target, std::string from, std::string to, tf::TransformListener& ls_)
+std::vector<std::vector<cv::Point3f>> transform(std::vector<std::vector<cv::Point3f>> &target, std::string from, std::string to, tf::TransformListener &ls_)
 {
 	tf::StampedTransform tf;
-	try{ ls_.lookupTransform(from, to, ros::Time(0), tf); }
-	catch(...) { return std::vector<std::vector<cv::Point3f>>(); }
+	try
+	{
+		ls_.lookupTransform(from, to, ros::Time(0), tf);
+	}
+	catch (...)
+	{
+		return std::vector<std::vector<cv::Point3f>>();
+	}
 	return transform(target, tf);
 }
 
 int main(int argc, char **argv)
 {
-    ros::init(argc, argv, "image_publisher");
-    ros::NodeHandle nh;
-    ros::NodeHandle nh_param("~");
+	ros::init(argc, argv, "image_publisher");
+	ros::NodeHandle nh;
+	ros::NodeHandle nh_param("~");
 
-    int _board_x;
-    int _board_y;
-    double _board_marker_length;
-    double _board_space_length;
-    double _b2m_x;
-    double _b2m_y;
-    double _b2m_z;
-    double _b2m_r;
-    double _b2m_p;
-    double _b2m_yaw;
+	int _board_x;
+	int _board_y;
+	double _board_marker_length;
+	double _board_space_length;
+	double _b2m_x;
+	double _b2m_y;
+	double _b2m_z;
+	double _b2m_r;
+	double _b2m_p;
+	double _b2m_yaw;
 
-    std::string _sub_image_name;
-    std::string _sub_pc_image_name;
-    std::string _cam_intrinsic_file;
-    std::string _save_output_file;
+	std::string _sub_image_name;
+	std::string _sub_pc_image_name;
+	std::string _cam_intrinsic_file;
+	std::string _save_output_file;
 
-    nh_param.getParam("board_x", _board_x);
-    nh_param.getParam("board_y", _board_y);
-    nh_param.getParam("board_marker_length", _board_marker_length);
-    nh_param.getParam("board_space_length", _board_space_length);
-    nh_param.getParam("b2m_x", _b2m_x);
-    nh_param.getParam("b2m_y", _b2m_y);
-    nh_param.getParam("b2m_z", _b2m_z);
-    nh_param.getParam("b2m_r", _b2m_r);
-    nh_param.getParam("b2m_p", _b2m_p);
-    nh_param.getParam("b2m_yaw", _b2m_yaw);
+	nh_param.getParam("board_x", _board_x);
+	nh_param.getParam("board_y", _board_y);
+	nh_param.getParam("board_marker_length", _board_marker_length);
+	nh_param.getParam("board_space_length", _board_space_length);
+	nh_param.getParam("b2m_x", _b2m_x);
+	nh_param.getParam("b2m_y", _b2m_y);
+	nh_param.getParam("b2m_z", _b2m_z);
+	nh_param.getParam("b2m_r", _b2m_r);
+	nh_param.getParam("b2m_p", _b2m_p);
+	nh_param.getParam("b2m_yaw", _b2m_yaw);
 
-    nh_param.getParam("sub_image_name", _sub_image_name);
-    nh_param.getParam("sub_pc_image_name", _sub_pc_image_name);
-    nh_param.getParam("cam_intrinsic_file", _cam_intrinsic_file);
-    nh_param.getParam("save_output_file", _save_output_file);
+	nh_param.getParam("sub_image_name", _sub_image_name);
+	nh_param.getParam("sub_pc_image_name", _sub_pc_image_name);
+	nh_param.getParam("cam_intrinsic_file", _cam_intrinsic_file);
+	nh_param.getParam("save_output_file", _save_output_file);
 
-    PCL_viewer.addCoordinateSystem(0.1);
+	PCL_viewer.addCoordinateSystem(0.1);
 
-    cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-    cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(_board_x, _board_y, _board_marker_length, _board_space_length, dictionary);
+	cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+	cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(_board_x, _board_y, _board_marker_length, _board_space_length, dictionary);
 
 	tf::StampedTransform base2marker = create_stamped_transform(_b2m_x, _b2m_y, _b2m_z, _b2m_r, _b2m_p, _b2m_yaw, "base_link", "marker");
-	
+
 	std::vector<std::vector<cv::Point3f>> tf_boardPoints = transform(board->objPoints, base2marker);
-	
-    image_transport::ImageTransport it(nh);
-    image_transport::Subscriber sub_image = it.subscribe(_sub_image_name, 1, image_callback);
+
+	image_transport::ImageTransport it(nh);
+	image_transport::Subscriber sub_image = it.subscribe(_sub_image_name, 1, image_callback);
 	ros::Subscriber sub_pcl_points = nh.subscribe<sensor_msgs::PointCloud2>(_sub_pc_image_name, 1, &PCL_callback);
 
 	std::string package_path = ros::package::getPath("marker_detection");
-    std::string filename = _cam_intrinsic_file;
+	std::string filename = _cam_intrinsic_file;
 
-    pubResultPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/resultPoints", 1);
-    pubinitPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/initPoints", 1);
+	pubResultPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/resultPoints", 1);
+	pubinitPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/initPoints", 1);
 
-    std::deque<std::pair<cv::Point3d, cv::Point3d>> dq_xyzrpy;
+	std::deque<std::pair<cv::Point3d, cv::Point3d>> dq_xyzrpy;
 
-    std::vector<int> ids;
+	std::vector<int> ids;
 
-    cv::Mat camMatrix, distCoeffs;
+	cv::Mat camMatrix, distCoeffs;
 
-    tf::TransformBroadcaster br_1;
-    tf::TransformListener listener_base2camera_link;
+	tf::TransformBroadcaster br_1;
+	tf::TransformListener listener_base2camera_link;
 
-    cv::FileStorage f_s(filename, cv::FileStorage::READ);
+	cv::FileStorage f_s(filename, cv::FileStorage::READ);
 
-    if (!f_s.isOpened())
-        std::cout << "err" << std::endl;
+	if (!f_s.isOpened())
+		std::cout << "err" << std::endl;
 
-    f_s["camera_matrix"] >> camMatrix;
-    f_s["distortion_coefficients"] >> distCoeffs;
+	f_s["camera_matrix"] >> camMatrix;
+	f_s["distortion_coefficients"] >> distCoeffs;
 
-    f_s.release();
+	f_s.release();
 
-    tf::TransformListener listener;
-    tf::TransformListener listener_cam_link;
-    tf::TransformListener listener_cam;
+	tf::TransformListener listener;
+	tf::TransformListener listener_cam_link;
+	tf::TransformListener listener_cam;
 
-    ros::Rate loop_rate(10);
+	ros::Rate loop_rate(10);
 
-    tf::Matrix3x3 m2c_r;
-    tf::Vector3 m2c_t;
+	tf::Matrix3x3 m2c_r;
+	tf::Vector3 m2c_t;
 
-    while (ros::ok())
-    {
+	while (ros::ok())
+	{
 		PCL_viewer.removeAllPointClouds();
 		PCL_viewer.removeCorrespondences();
 
 		base2marker.stamp_ = ros::Time::now();
 		br_1.sendTransform(base2marker);
 
-		if(frame.empty() || flag == false)
+		if (frame.empty() || flag == false)
 		{
 			ROS_ERROR("frame is empty");
 			ros::spinOnce();
@@ -422,16 +429,18 @@ int main(int argc, char **argv)
 		}
 
 		cv::Mat frame_cp;
-        frame.copyTo(frame_cp);
+		frame.copyTo(frame_cp);
 
 		bool find_marker = false;
 		std::vector<std::vector<cv::Point2f>> corners;
 		cv::aruco::detectMarkers(frame, dictionary, corners, ids);
 
-		if(ids.size() <= 0 || pcl_cloud.empty())
+		if (ids.size() <= 0 || pcl_cloud.empty())
 		{
-			if(ids.size() <= 0) ROS_ERROR("Fail to detect Markers");
-			else if(pcl_cloud.empty()) ROS_ERROR("Empty pcl_cloud");
+			if (ids.size() <= 0)
+				ROS_ERROR("Fail to detect Markers");
+			else if (pcl_cloud.empty())
+				ROS_ERROR("Empty pcl_cloud");
 
 			ros::spinOnce();
 			loop_rate.sleep();
@@ -441,23 +450,23 @@ int main(int argc, char **argv)
 		if (ids.size() > 0)
 		{
 			cv::Mat ob_points, ref_points;
-			getMats(tf_boardPoints, corners, ids, ref_points, ob_points); //N x 3 data
+			getMats(tf_boardPoints, corners, ids, ref_points, ob_points); // N x 3 data
 
 			pub_PointTF(ref_points, "base_link", "ref", br_1);
 			pub_PointTF(ob_points, "camera_rgb_optical_frame", "ob", br_1);
 
 			cv::Mat R, tvec_depth, rvec_depth;
-			calcPose(ref_points, ob_points, R, tvec_depth); //ref_points(base_link) ob_poitns(cam)
+			calcPose(ref_points, ob_points, R, tvec_depth); // ref_points(base_link) ob_poitns(cam)
 			cv::Rodrigues(R, rvec_depth);
 
 			tf::StampedTransform result_tf = create_stamped_transform(tvec_depth, rvec_depth, "base_link", "cam");
-			
-			if(!rvec_depth.empty() && !tvec_depth.empty())
+
+			if (!rvec_depth.empty() && !tvec_depth.empty())
 				br_1.sendTransform(result_tf);
 
-			if(1)
+			if (1)
 			{
-				cv::Mat result = R*ob_points.t();
+				cv::Mat result = R * ob_points.t();
 				result.row(0) += tvec_depth.at<double>(0, 0);
 				result.row(1) += tvec_depth.at<double>(0, 1);
 				result.row(2) += tvec_depth.at<double>(0, 2);
@@ -470,45 +479,45 @@ int main(int argc, char **argv)
 				PCL_viewer.addPointCloud(temp_pcl_cloud);
 
 				pcl::PointCloud<pcl::PointXYZ>::Ptr ob_PCL(new pcl::PointCloud<pcl::PointXYZ>());
-				for(int i=0; i<ob_points.rows; i++)
+				for (int i = 0; i < ob_points.rows; i++)
 					ob_PCL->push_back(pcl::PointXYZ(ob_points.at<double>(i, 0), ob_points.at<double>(i, 1), ob_points.at<double>(i, 2)));
 				PCL_viewer.addPointCloud(ob_PCL, "ob");
 				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, "ob");
-				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 5, "ob");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "ob");
 
 				pcl::PointCloud<pcl::PointXYZ>::Ptr ref_PCL(new pcl::PointCloud<pcl::PointXYZ>());
-				for(int i=0; i<ref_points.rows; i++)
+				for (int i = 0; i < ref_points.rows; i++)
 					ref_PCL->push_back(pcl::PointXYZ(ref_points.at<double>(i, 0), ref_points.at<double>(i, 1), ref_points.at<double>(i, 2)));
 				PCL_viewer.addPointCloud(ref_PCL, "ref");
 				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1, 0, 0, "ref");
-				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 5, "ref");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "ref");
 
 				pcl::PointCloud<pcl::PointXYZ>::Ptr result_PCL(new pcl::PointCloud<pcl::PointXYZ>());
-				for(int i=0; i<result_t.rows; i++)
+				for (int i = 0; i < result_t.rows; i++)
 					result_PCL->push_back(pcl::PointXYZ(result_t.at<double>(i, 0), result_t.at<double>(i, 1), result_t.at<double>(i, 2)));
 				PCL_viewer.addPointCloud(result_PCL, "result");
 				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0, 1, 0, "result");
-				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE , 5, "result");
+				PCL_viewer.setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_POINT_SIZE, 5, "result");
 
 				std::vector<int> corrs;
-				for(int i=0; i<(int)ob_PCL->size(); i++)
+				for (int i = 0; i < (int)ob_PCL->size(); i++)
 					corrs.push_back(i);
-				PCL_viewer.addCorrespondences<pcl::PointXYZ>(result_PCL, ref_PCL, corrs);	
+				PCL_viewer.addCorrespondences<pcl::PointXYZ>(result_PCL, ref_PCL, corrs);
 			}
 
-			if(0)
+			if (0)
 			{
-				for(int i=0; i<(int)board->objPoints.size(); i++)
+				for (int i = 0; i < (int)board->objPoints.size(); i++)
 				{
 					std::vector<cv::Point2f> projP;
 					cv::projectPoints(tf_boardPoints[i], cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), camMatrix, distCoeffs, projP);
-					for(int j=0; j<(int)projP.size(); j++)
+					for (int j = 0; j < (int)projP.size(); j++)
 						cv::circle(frame_cp, projP[j], 2, cv::Scalar(0, 0, 255));
 				}
 			}
 		}
 
-		if(0 && listener_cam_link.waitForTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), ros::Duration(1.0)))
+		if (0 && listener_cam_link.waitForTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), ros::Duration(1.0)))
 		{
 			tf::StampedTransform tf_o2l;
 			listener_cam_link.lookupTransform("/camera_rgb_optical_frame", "/camera_link", ros::Time(0), tf_o2l);
@@ -516,27 +525,25 @@ int main(int argc, char **argv)
 			tf::StampedTransform base_st(tf::Transform(tf_o2l.getRotation(), tf_o2l.getOrigin()), ros::Time::now(), "cam", "est_camera_link");
 			br_1.sendTransform(base_st);
 
-				tf::Matrix3x3 m(base_st.getRotation());
-				double roll = 0.0, pitch = 0.0, yaw = 0.0;
-				m.getRPY(roll, pitch, yaw);
+			tf::Matrix3x3 m(base_st.getRotation());
+			double roll = 0.0, pitch = 0.0, yaw = 0.0;
+			m.getRPY(roll, pitch, yaw);
 
-				ROS_WARN("%lf %lf %lf, %lf %lf %lf", base_st.getOrigin().getX(), base_st.getOrigin().getY(), base_st.getOrigin().getZ(), roll, pitch, yaw);
+			ROS_WARN("%lf %lf %lf, %lf %lf %lf", base_st.getOrigin().getX(), base_st.getOrigin().getY(), base_st.getOrigin().getZ(), roll, pitch, yaw);
 		}
-		else 
+		else
 		{
 			tf::StampedTransform tf_o2l = create_stamped_transform(-0.045, 0.0, 0.0, 1.570796, -1.570796, 0.000000, "cam", "est_camera_link");
 			br_1.sendTransform(tf_o2l);
 
 			tf::StampedTransform tf_l2o(tf_o2l.inverse(), ros::Time::now(), "camera_link", "camera_rgb_optical_frame");
 			br_1.sendTransform(tf_l2o);
-
-			
 		}
 
-		if(0)
+		if (0)
 		{
 			std::string from = "/est_camera_link", to = "/marker";
-			if(listener.waitForTransform(from, to, ros::Time(0), ros::Duration(1.0)))
+			if (listener.waitForTransform(from, to, ros::Time(0), ros::Duration(1.0)))
 			{
 				tf::StampedTransform tf;
 				listener.lookupTransform(from, to, ros::Time(0), tf);
@@ -549,7 +556,7 @@ int main(int argc, char **argv)
 			}
 		}
 
-		if(listener.waitForTransform("/base_link", "/est_camera_link", ros::Time(0), ros::Duration(1.0)))
+		if (listener.waitForTransform("/base_link", "/est_camera_link", ros::Time(0), ros::Duration(1.0)))
 		{
 			tf::StampedTransform tf_b2d;
 			listener.lookupTransform("/base_link", "/est_camera_link", ros::Time(0), tf_b2d);
@@ -563,13 +570,12 @@ int main(int argc, char **argv)
 
 			dq_xyzrpy.push_back(std::pair<cv::Point3d, cv::Point3d>(
 				cv::Point3d(tf_b2d.getOrigin().getX(), tf_b2d.getOrigin().getY(), tf_b2d.getOrigin().getZ()),
-				cv::Point3d(roll, pitch, yaw)
-			));
+				cv::Point3d(roll, pitch, yaw)));
 
 			if (dq_xyzrpy.size() == 10)
 			{
 				std::ofstream value_text;
-                value_text.open(_save_output_file);
+				value_text.open(_save_output_file);
 				cv::Point3d t_sum(0, 0, 0);
 				cv::Point3d t_ave(0, 0, 0);
 				cv::Point3d r_sum(0, 0, 0);
@@ -596,16 +602,16 @@ int main(int argc, char **argv)
 		}
 
 		cv::Mat resized_frame_cp;
-		cv::resize(frame_cp, resized_frame_cp, cv::Size(frame_cp.cols*2, frame_cp.rows*2));
+		cv::resize(frame_cp, resized_frame_cp, cv::Size(frame_cp.cols * 2, frame_cp.rows * 2));
 		// cv::imshow("out", resized_frame_cp);
 		// if (cv::waitKey(1) == 27)
 		// 	break;
 
-        ros::spinOnce();
+		ros::spinOnce();
 		PCL_viewer.spinOnce();
 
-        loop_rate.sleep();
-    }
+		loop_rate.sleep();
+	}
 
-    return 0;
+	return 0;
 }
