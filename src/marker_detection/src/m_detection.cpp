@@ -35,7 +35,6 @@ bool flag = false;
 
 ros::Publisher pubResultPointCloud, pubinitPointCloud;
 
-
 std::mutex pcl_cloud_mtx;
 pcl::PointCloud<pcl::PointXYZRGB> pcl_cloud;
 pcl::visualization::PCLVisualizer PCL_viewer("Cloud Viewer");
@@ -363,23 +362,18 @@ int main(int argc, char **argv)
 
     cv::Ptr<cv::aruco::Dictionary> dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
     cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(_board_x, _board_y, _board_marker_length, _board_space_length, dictionary);
-    // cv::Ptr<cv::aruco::GridBoard> board = cv::aruco::GridBoard::create(5, 7, 0.0417, 0.0056, dictionary);
 
 	tf::StampedTransform base2marker = create_stamped_transform(_b2m_x, _b2m_y, _b2m_z, _b2m_r, _b2m_p, _b2m_yaw, "base_link", "marker");
-	// tf::StampedTransform base2marker = create_stamped_transform(0.6, 0, -0.01, 0, -M_PI/2.0, 0, "base_link", "marker");
-	// tf::StampedTransform base2marker = create_stamped_transform(0.482, -0.144, 0.77, 0, -0.663, 0, "base_link", "marker");
-	// tf::StampedTransform base2marker = create_stamped_transform(0.85, -0.31, 0.675, 0, -0.95, 0, "base_link", "marker");
-
+	
 	std::vector<std::vector<cv::Point3f>> tf_boardPoints = transform(board->objPoints, base2marker);
 	
     image_transport::ImageTransport it(nh);
     image_transport::Subscriber sub_image = it.subscribe(_sub_image_name, 1, image_callback);
 	ros::Subscriber sub_pcl_points = nh.subscribe<sensor_msgs::PointCloud2>(_sub_pc_image_name, 1, &PCL_callback);
-	// ros::Subscriber sub_points = nh.subscribe<sensor_msgs::PointCloud2>("/camera/depth/points", 1, &points_callback);
 
 	std::string package_path = ros::package::getPath("marker_detection");
-    // std::string filename = package_path + "/src/cam_int";
     std::string filename = _cam_intrinsic_file;
+
     pubResultPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/resultPoints", 1);
     pubinitPointCloud = nh.advertise<sensor_msgs::PointCloud2>("/initPoints", 1);
 
@@ -390,12 +384,8 @@ int main(int argc, char **argv)
     cv::Mat camMatrix, distCoeffs;
 
     tf::TransformBroadcaster br_1;
-    tf::TransformBroadcaster br_2;
-    tf::TransformBroadcaster br_3;
-    tf::TransformBroadcaster br_4;
-    tf::TransformBroadcaster br_5;
-    // tf_msgs::TFMessage tf_msg_list_;
     tf::TransformListener listener_base2camera_link;
+
     cv::FileStorage f_s(filename, cv::FileStorage::READ);
 
     if (!f_s.isOpened())
@@ -406,11 +396,10 @@ int main(int argc, char **argv)
 
     f_s.release();
 
-    tf::StampedTransform tf_b2c;
     tf::TransformListener listener;
     tf::TransformListener listener_cam_link;
-
     tf::TransformListener listener_cam;
+
     ros::Rate loop_rate(10);
 
     tf::Matrix3x3 m2c_r;
@@ -512,10 +501,6 @@ int main(int argc, char **argv)
 				for(int i=0; i<(int)board->objPoints.size(); i++)
 				{
 					std::vector<cv::Point2f> projP;
-
-//					cv::projectPoints(board->objPoints[i], rvec_board, tvec_board, camMatrix, distCoeffs, projP);
-//					for(int j=0; j<(int)projP.size(); j++)
-//						cv::circle(frame_cp, projP[j], 2, cv::Scalar(0, 0, 255));
 					cv::projectPoints(tf_boardPoints[i], cv::Vec3d(0, 0, 0), cv::Vec3d(0, 0, 0), camMatrix, distCoeffs, projP);
 					for(int j=0; j<(int)projP.size(); j++)
 						cv::circle(frame_cp, projP[j], 2, cv::Scalar(0, 0, 255));
@@ -551,7 +536,6 @@ int main(int argc, char **argv)
 		if(0)
 		{
 			std::string from = "/est_camera_link", to = "/marker";
-			// std::string from = "/est_camera_link", to = "/camera_link";
 			if(listener.waitForTransform(from, to, ros::Time(0), ros::Duration(1.0)))
 			{
 				tf::StampedTransform tf;
@@ -585,7 +569,6 @@ int main(int argc, char **argv)
 			if (dq_xyzrpy.size() == 10)
 			{
 				std::ofstream value_text;
-				// value_text.open(package_path + "/src/value.txt");
                 value_text.open(_save_output_file);
 				cv::Point3d t_sum(0, 0, 0);
 				cv::Point3d t_ave(0, 0, 0);
@@ -614,9 +597,9 @@ int main(int argc, char **argv)
 
 		cv::Mat resized_frame_cp;
 		cv::resize(frame_cp, resized_frame_cp, cv::Size(frame_cp.cols*2, frame_cp.rows*2));
-		cv::imshow("out", resized_frame_cp);
-		if (cv::waitKey(1) == 27)
-			break;
+		// cv::imshow("out", resized_frame_cp);
+		// if (cv::waitKey(1) == 27)
+		// 	break;
 
         ros::spinOnce();
 		PCL_viewer.spinOnce();
